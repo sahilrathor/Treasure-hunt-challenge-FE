@@ -16,7 +16,7 @@ export function BrickBreakerGame({ challenge, disabled, onComplete }: GameProps)
     const nextActions = [...actions, result.action];
     setState(result.state);
     setActions(nextActions);
-    if (result.state.broken.length === target || result.state.lives === 0) {
+    if (result.state.broken.length === target) {
       onComplete({
         challengeToken: challenge.challengeToken,
         achieved: result.state.broken.length,
@@ -61,9 +61,23 @@ export function BrickBreakerGame({ challenge, disabled, onComplete }: GameProps)
         >
           <ArrowLeft />
         </Button>
-        <Button type="button" disabled={disabled || state.lives === 0} onClick={launch}>
-          Launch ball
-        </Button>
+        {state.lives === 0 && state.broken.length < target ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="border-rose-500/40 text-rose-300"
+            onClick={() => {
+              setState(createBrickState(Number(challenge.lives ?? 3)));
+              setActions([]);
+            }}
+          >
+            Out of lives! Try Again
+          </Button>
+        ) : (
+          <Button type="button" disabled={disabled || state.broken.length === target} onClick={launch}>
+            Launch ball
+          </Button>
+        )}
         <Button
           type="button"
           variant="secondary"

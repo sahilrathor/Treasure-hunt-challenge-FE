@@ -7,6 +7,7 @@ export interface SnakeState {
   direction: SnakeDirection;
   score: number;
   over: boolean;
+  crashReason?: 'wall' | 'self' | 'obstacle';
 }
 
 const width = 8;
@@ -34,6 +35,7 @@ export function createSnakeState(obstacleCount: number): SnakeState {
     direction: 'right',
     score: 0,
     over: false,
+    crashReason: undefined,
   };
 }
 
@@ -46,13 +48,16 @@ export function moveSnake(state: SnakeState, requested: SnakeDirection): SnakeSt
   const nextRow = row + (direction === 'down' ? 1 : direction === 'up' ? -1 : 0);
   const nextColumn = column + (direction === 'right' ? 1 : direction === 'left' ? -1 : 0);
   if (nextRow < 0 || nextRow >= width || nextColumn < 0 || nextColumn >= width) {
-    return { ...state, direction, over: true };
+    return { ...state, direction, over: true, crashReason: 'wall' };
   }
   const nextHead = nextRow * width + nextColumn;
   const ate = nextHead === state.food;
   const body = ate ? state.snake : state.snake.slice(0, -1);
-  if (body.includes(nextHead) || state.obstacles.includes(nextHead)) {
-    return { ...state, direction, over: true };
+  if (body.includes(nextHead)) {
+    return { ...state, direction, over: true, crashReason: 'self' };
+  }
+  if (state.obstacles.includes(nextHead)) {
+    return { ...state, direction, over: true, crashReason: 'obstacle' };
   }
   const snake = [nextHead, ...body];
   const score = state.score + (ate ? 1 : 0);
@@ -62,5 +67,6 @@ export function moveSnake(state: SnakeState, requested: SnakeDirection): SnakeSt
     score,
     direction,
     food: ate ? nextFood(score, snake, state.obstacles) : state.food,
+    crashReason: undefined,
   };
 }

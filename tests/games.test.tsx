@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 
@@ -49,5 +49,60 @@ it('emits evidence only after the arcade target is reached', async () => {
   expect(complete.mock.calls[0]?.[0]).toMatchObject({
     challengeToken: 'challenge-token',
     achieved: 2,
+  });
+});
+
+it('shows OUT when Snake hits boundary and does not complete', async () => {
+  const complete = vi.fn();
+  const { SnakeGame } = await import('@/features/games/snake/SnakeGame');
+  render(
+    <SnakeGame
+      challenge={{ target: 3, obstacles: 0, challengeToken: 'snake-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  // Snake starts at [27, 26, 25] moving right. Row 3, cols 3, 2, 1.
+  // Moving right: col 4, 5, 6, 7, then next right crashes into wall (col 8)!
+  for (let i = 0; i < 5; i += 1) {
+    const btn = screen.queryByRole('button', { name: 'Move right' });
+    if (btn && !btn.hasAttribute('disabled')) {
+      fireEvent.click(btn);
+    }
+  }
+
+  // Expect OUT banner, not level cleared
+  expect(screen.getByText(/OUT! You touched the boundary!/i)).toBeInTheDocument();
+  // complete should NOT be called!
+  expect(complete).not.toHaveBeenCalled();
+
+  // Try Again button should be present
+  const tryAgain = screen.getByRole('button', { name: /Try Again/i });
+  expect(tryAgain).toBeInTheDocument();
+  fireEvent.click(tryAgain);
+
+  // OUT message should be cleared
+  expect(screen.queryByText(/OUT! You touched the boundary!/i)).not.toBeInTheDocument();
+});
+
+it('completes Snake challenge when food target is reached without crash', async () => {
+  const complete = vi.fn();
+  const { SnakeGame } = await import('@/features/games/snake/SnakeGame');
+  render(
+    <SnakeGame
+      challenge={{ target: 1, obstacles: 0, challengeToken: 'snake-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  // Moving right, right, right, right, up, up, up hits the first food at cell 7
+  for (const dir of ['right', 'right', 'right', 'right', 'up', 'up', 'up']) {
+    fireEvent.click(screen.getByRole('button', { name: `Move ${dir}` }));
+  }
+
+  expect(complete).toHaveBeenCalledOnce();
+  expect(complete.mock.calls[0]?.[0]).toMatchObject({
+    challengeToken: 'snake-token',
+    achieved: 1,
   });
 });
