@@ -178,7 +178,7 @@ export function getGhostPieceRow(
 }
 
 export function createRealtimeTetrisState(
-  target = 4,
+  target = 3,
   speed = 550,
 ): RealtimeTetrisState {
   const bag1 = generateBag();

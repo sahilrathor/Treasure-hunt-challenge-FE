@@ -70,7 +70,7 @@ export function AdminGameSandboxModal({
         };
       case 'tetris':
         return {
-          target: difficulty === 'easy' ? 4 : difficulty === 'medium' ? 6 : 8,
+          target: difficulty === 'easy' ? 3 : difficulty === 'medium' ? 6 : 8,
           speed: difficulty === 'easy' ? 550 : difficulty === 'medium' ? 400 : 280,
           difficulty,
           challengeToken: token,

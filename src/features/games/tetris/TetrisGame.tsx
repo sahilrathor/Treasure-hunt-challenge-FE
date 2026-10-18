@@ -27,7 +27,7 @@ import { Button } from '@/components/atoms/Button';
 import type { GameProps } from '../shared/types';
 
 export function TetrisGame({ challenge, disabled, onComplete }: GameProps) {
-  const target = Number(challenge.target ?? 4);
+  const target = Number(challenge.target ?? 3);
   const speed = Number(challenge.speed ?? 550);
 
   const [state, setState] = useState<RealtimeTetrisState>(() =>
