@@ -76,8 +76,8 @@ export function AdminGameSandboxModal({
           challengeToken: token,
         };
       case 'memory-match': {
-        const pairs = difficulty === 'easy' ? 4 : difficulty === 'medium' ? 6 : 8;
-        const cards = Array.from({ length: pairs }, (_, i) => [i + 1, i + 1]).flat();
+        const pairs = difficulty === 'easy' ? 6 : difficulty === 'medium' ? 8 : 12;
+        const cards = Array.from({ length: pairs }, (_, i) => [i, i]).flat();
         // deterministic shuffle for testing
         const board = [...cards].sort(() => 0.5 - Math.random());
         return {

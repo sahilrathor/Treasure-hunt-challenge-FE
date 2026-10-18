@@ -178,4 +178,30 @@ it('renders BrickBreakerGame, moves paddle and launches ball', async () => {
   expect(screen.getAllByText(/Ball in Play/i).length).toBeGreaterThanOrEqual(1);
 });
 
+it('renders MemoryMatchGame with dynamic grid, flips cards, and matches pairs', async () => {
+  const complete = vi.fn();
+  const { MemoryMatchGame } = await import('@/features/games/memory-match/MemoryMatchGame');
+  // 6 pairs: [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+  const board = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5];
+  render(
+    <MemoryMatchGame
+      challenge={{ pairs: 6, board, challengeToken: 'memory-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  expect(screen.getByText(/Pairs 0 \/ 6/i)).toBeInTheDocument();
+
+  // Click card 0 and card 1 (both have value 0 - Diamond)
+  const card1 = screen.getByRole('button', { name: 'Card 1' });
+  fireEvent.click(card1);
+  const card2 = screen.getByRole('button', { name: 'Card 2' });
+  fireEvent.click(card2);
+
+  // Score should update to 1 / 6
+  expect(screen.getByText(/Pairs 1 \/ 6/i)).toBeInTheDocument();
+  expect(screen.getAllByText(/Diamond/i).length).toBe(2);
+});
+
+
 
