@@ -158,5 +158,10 @@ export const huntApi = {
       )
     ).data.data;
   },
+  async reloadAssignment(assignmentId: string) {
+    return (
+      await api.post<ApiEnvelope<Assignment>>(`/assignments/${assignmentId}/reload`)
+    ).data.data;
+  },
 };
 
