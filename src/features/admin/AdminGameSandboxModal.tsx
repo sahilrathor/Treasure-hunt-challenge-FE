@@ -70,8 +70,8 @@ export function AdminGameSandboxModal({
         };
       case 'tetris':
         return {
-          target: difficulty === 'easy' ? 2 : difficulty === 'medium' ? 4 : 6,
-          speed: difficulty === 'easy' ? 700 : difficulty === 'medium' ? 550 : 400,
+          target: difficulty === 'easy' ? 4 : difficulty === 'medium' ? 6 : 8,
+          speed: difficulty === 'easy' ? 550 : difficulty === 'medium' ? 400 : 280,
           difficulty,
           challengeToken: token,
         };

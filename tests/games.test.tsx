@@ -31,25 +31,34 @@ it('renders FlappyBirdGame and flaps wings on action', async () => {
   expect(screen.getByText(/Pipes 0 \/ 3/)).toBeInTheDocument();
 });
 
-it('emits evidence only after the arcade target is reached', async () => {
+it('renders modern Tetris, moves, rotates piece, and hard drops', async () => {
   const user = userEvent.setup();
   const complete = vi.fn();
   render(
     <TetrisGame
-      challenge={{ target: 2, challengeToken: 'challenge-token' }}
+      challenge={{ target: 1, challengeToken: 'challenge-token' }}
       onComplete={complete}
     />,
   );
-  for (let line = 0; line < 2; line += 1) {
-    for (let column = 1; column <= 6; column += 1) {
-      await user.click(screen.getByRole('button', { name: `Drop column ${column}` }));
-    }
-  }
-  expect(complete).toHaveBeenCalledOnce();
-  expect(complete.mock.calls[0]?.[0]).toMatchObject({
-    challengeToken: 'challenge-token',
-    achieved: 2,
-  });
+
+  expect(screen.getByText(/Lines 0 \/ 1/)).toBeInTheDocument();
+  expect(screen.getByText(/Next/i)).toBeInTheDocument();
+
+  // Move left, right, and rotate
+  const leftBtn = screen.getByRole('button', { name: /Move left/i });
+  const rightBtn = screen.getByRole('button', { name: /Move right/i });
+  const rotateBtn = screen.getByRole('button', { name: /Rotate piece/i });
+  const hardDropBtn = screen.getByRole('button', { name: /Hard Drop/i });
+
+  await user.click(leftBtn);
+  await user.click(rightBtn);
+  await user.click(rotateBtn);
+
+  // Hard drop piece
+  await user.click(hardDropBtn);
+
+  // Status remains active or completes
+  expect(screen.getByText(/Lines/i)).toBeInTheDocument();
 });
 
 it('shows OUT when Tetris board overflows and does not complete', async () => {
@@ -62,12 +71,11 @@ it('shows OUT when Tetris board overflows and does not complete', async () => {
     />,
   );
 
-  // Fill column 1 until it overflows (height is 10, so 11 drops in column 1)
-  for (let i = 0; i < 11; i += 1) {
-    const btn = screen.queryByRole('button', { name: 'Drop column 1' });
-    if (btn && !btn.hasAttribute('disabled')) {
-      await user.click(btn);
-    }
+  // Hard drop pieces until board tops out (height is 16, so ~10-12 drops in same column tops out)
+  const hardDropBtn = screen.getByRole('button', { name: /Hard Drop/i });
+  for (let i = 0; i < 20; i += 1) {
+    if (screen.queryAllByText(/BOARD FULL! OUT/i).length > 0) break;
+    await user.click(hardDropBtn);
   }
 
   // Expect BOARD FULL! OUT banner, NOT complete

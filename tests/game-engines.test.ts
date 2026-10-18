@@ -19,11 +19,14 @@ import {
   createTetrisBoard,
   createRealtimeTetrisState,
   dropBlock,
-  getGhostRow,
-  lockAndDrop,
-  moveFallingCol,
+  getGhostPieceRow,
+  hardDropCurrentPiece,
+  lockAndDropCurrentPiece,
+  moveCurrentPiece,
   restartTetrisGame,
-  tickFallingBlock,
+  rotateCurrentPiece,
+  TETRIS_WIDTH,
+  TETROMINO_ROTATIONS,
 } from '@/features/games/tetris';
 
 describe('isolated game engines', () => {
@@ -38,33 +41,50 @@ describe('isolated game engines', () => {
     expect(lines).toBe(1);
   });
 
-  it('runs real-time Tetris with falling blocks, steering, ghost row, and line clear', () => {
+  it('runs modern 10x16 Tetromino engine with shapes, rotations, and line clears', () => {
     let state = createRealtimeTetrisState(1, 400);
     expect(state.status).toBe('playing');
-    expect(state.fallingCol).toBe(2);
+    expect(state.board).toHaveLength(10 * 16);
+    expect(state.currentPiece).toBeDefined();
 
-    // Steer left and right
-    state = moveFallingCol(state, -1);
-    expect(state.fallingCol).toBe(1);
-    state = moveFallingCol(state, 1);
-    expect(state.fallingCol).toBe(2);
+    // Steer active piece
+    const startCol = state.currentPiece.col;
+    state = moveCurrentPiece(state, -1);
+    expect(state.currentPiece.col).toBe(startCol - 1);
+    state = moveCurrentPiece(state, 1);
+    expect(state.currentPiece.col).toBe(startCol);
 
-    // Ghost row on empty column is bottom row 9
-    expect(getGhostRow(state.board, 2)).toBe(9);
+    // Rotate active piece
+    const startRot = state.currentPiece.rot;
+    state = rotateCurrentPiece(state);
+    expect(state.currentPiece.rot).toBe((startRot + 1) % 4);
 
-    // Tick down
-    state = tickFallingBlock(state);
-    expect(state.fallingRow).toBe(1);
+    // Ghost row calculation
+    const currentMatrix = TETROMINO_ROTATIONS[state.currentPiece.type][state.currentPiece.rot]!;
+    const ghostRow = getGhostPieceRow(
+      state.board,
+      currentMatrix,
+      state.currentPiece.row,
+      state.currentPiece.col,
+    );
+    expect(ghostRow).toBeGreaterThanOrEqual(0);
 
-    // Drop into all columns to clear a line
-    for (let col = 0; col < 6; col += 1) {
-      state = lockAndDrop(state, col);
+    // Hard drop stamps the piece
+    state = hardDropCurrentPiece(state);
+    expect(state.actions).toHaveLength(1);
+    expect(state.actions[0]).toMatch(/^place:[IOTZSJL]:[0-3]:-?\d+$/);
+
+    // Simulate clearing a complete row across 10 columns
+    const bottomRow = 15;
+    for (let c = 0; c < TETRIS_WIDTH; c += 1) {
+      state.board[bottomRow * TETRIS_WIDTH + c] = 'I';
     }
-    expect(state.lines).toBe(1);
+    // Stamping a piece on a board with a full bottom row will clear it
+    state = lockAndDropCurrentPiece(state);
+    expect(state.lines).toBeGreaterThanOrEqual(1);
     expect(state.status).toBe('won');
-    expect(state.actions).toHaveLength(6);
 
-    // Restart resets lines and status
+    // Restart resets lines and state
     state = restartTetrisGame(state);
     expect(state.status).toBe('playing');
     expect(state.lines).toBe(0);

@@ -1,15 +1,18 @@
-export const TETRIS_WIDTH = 6;
-export const TETRIS_HEIGHT = 10;
+// -------------------------------------------------------------
+// Legacy 6x10 block drop simulation (preserved for backwards-compatibility)
+// -------------------------------------------------------------
+export const LEGACY_WIDTH = 6;
+export const LEGACY_HEIGHT = 10;
 export type TetrisBoard = boolean[];
 
 export const createTetrisBoard = (): TetrisBoard =>
-  Array<boolean>(TETRIS_WIDTH * TETRIS_HEIGHT).fill(false);
+  Array<boolean>(LEGACY_WIDTH * LEGACY_HEIGHT).fill(false);
 
 export function dropBlock(board: TetrisBoard, column: number) {
   const next = [...board];
   let placed = false;
-  for (let row = TETRIS_HEIGHT - 1; row >= 0; row -= 1) {
-    const index = row * TETRIS_WIDTH + column;
+  for (let row = LEGACY_HEIGHT - 1; row >= 0; row -= 1) {
+    const index = row * LEGACY_WIDTH + column;
     if (!next[index]) {
       next[index] = true;
       placed = true;
@@ -19,143 +22,369 @@ export function dropBlock(board: TetrisBoard, column: number) {
   if (!placed) return { board, cleared: 0, overflow: true };
   const keptRows: boolean[][] = [];
   let cleared = 0;
-  for (let row = 0; row < TETRIS_HEIGHT; row += 1) {
-    const values = next.slice(row * TETRIS_WIDTH, (row + 1) * TETRIS_WIDTH);
+  for (let row = 0; row < LEGACY_HEIGHT; row += 1) {
+    const values = next.slice(row * LEGACY_WIDTH, (row + 1) * LEGACY_WIDTH);
     if (values.every(Boolean)) cleared += 1;
     else keptRows.push(values);
   }
-  while (keptRows.length < TETRIS_HEIGHT) {
-    keptRows.unshift(Array<boolean>(TETRIS_WIDTH).fill(false));
+  while (keptRows.length < LEGACY_HEIGHT) {
+    keptRows.unshift(Array<boolean>(LEGACY_WIDTH).fill(false));
   }
   return { board: keptRows.flat(), cleared, overflow: false };
 }
 
 // -------------------------------------------------------------
-// Real-time Tetris Mechanics
+// Modern 10x16 Tetromino Engine (7 Polyomino Pieces & Rotation)
 // -------------------------------------------------------------
+export const TETRIS_WIDTH = 10;
+export const TETRIS_HEIGHT = 16;
+
+export type TetrominoType = 'I' | 'O' | 'T' | 'S' | 'Z' | 'J' | 'L';
+
+export const TETROMINO_ROTATIONS: Record<TetrominoType, number[][][]> = {
+  I: [
+    [[1, 1, 1, 1]],
+    [[1], [1], [1], [1]],
+    [[1, 1, 1, 1]],
+    [[1], [1], [1], [1]],
+  ],
+  O: [
+    [[1, 1], [1, 1]],
+    [[1, 1], [1, 1]],
+    [[1, 1], [1, 1]],
+    [[1, 1], [1, 1]],
+  ],
+  T: [
+    [[0, 1, 0], [1, 1, 1]],
+    [[1, 0], [1, 1], [1, 0]],
+    [[1, 1, 1], [0, 1, 0]],
+    [[0, 1], [1, 1], [0, 1]],
+  ],
+  S: [
+    [[0, 1, 1], [1, 1, 0]],
+    [[1, 0], [1, 1], [0, 1]],
+    [[0, 1, 1], [1, 1, 0]],
+    [[1, 0], [1, 1], [0, 1]],
+  ],
+  Z: [
+    [[1, 1, 0], [0, 1, 1]],
+    [[0, 1], [1, 1], [1, 0]],
+    [[1, 1, 0], [0, 1, 1]],
+    [[0, 1], [1, 1], [1, 0]],
+  ],
+  J: [
+    [[1, 0, 0], [1, 1, 1]],
+    [[1, 1], [1, 0], [1, 0]],
+    [[1, 1, 1], [0, 0, 1]],
+    [[0, 1], [0, 1], [1, 1]],
+  ],
+  L: [
+    [[0, 0, 1], [1, 1, 1]],
+    [[1, 0], [1, 0], [1, 1]],
+    [[1, 1, 1], [1, 0, 0]],
+    [[1, 1], [0, 1], [0, 1]],
+  ],
+};
+
+export const TETROMINO_COLORS: Record<
+  TetrominoType,
+  { fill: string; border: string; glow: string; text: string }
+> = {
+  I: { fill: 'bg-cyan-400', border: 'border-cyan-200', glow: 'shadow-[0_0_12px_rgba(34,211,238,0.5)]', text: 'text-cyan-300' },
+  O: { fill: 'bg-yellow-400', border: 'border-yellow-200', glow: 'shadow-[0_0_12px_rgba(250,204,21,0.5)]', text: 'text-yellow-300' },
+  T: { fill: 'bg-purple-500', border: 'border-purple-300', glow: 'shadow-[0_0_12px_rgba(168,85,247,0.5)]', text: 'text-purple-300' },
+  S: { fill: 'bg-emerald-500', border: 'border-emerald-300', glow: 'shadow-[0_0_12px_rgba(16,185,129,0.5)]', text: 'text-emerald-300' },
+  Z: { fill: 'bg-rose-500', border: 'border-rose-300', glow: 'shadow-[0_0_12px_rgba(244,63,94,0.5)]', text: 'text-rose-300' },
+  J: { fill: 'bg-blue-500', border: 'border-blue-300', glow: 'shadow-[0_0_12px_rgba(59,130,246,0.5)]', text: 'text-blue-300' },
+  L: { fill: 'bg-orange-500', border: 'border-orange-300', glow: 'shadow-[0_0_12px_rgba(249,115,22,0.5)]', text: 'text-orange-300' },
+};
+
+export type TetrisCell = TetrominoType | null;
+
+export interface ActivePiece {
+  type: TetrominoType;
+  rot: number;
+  row: number;
+  col: number;
+}
+
 export type TetrisStatus = 'playing' | 'gameover' | 'won';
 
 export interface RealtimeTetrisState {
-  board: TetrisBoard;
+  board: TetrisCell[];
   target: number;
   speed: number;
   lines: number;
   status: TetrisStatus;
-  fallingCol: number;
-  fallingRow: number;
+  currentPiece: ActivePiece;
+  nextPiece: TetrominoType;
+  bag: TetrominoType[];
   actions: string[];
 }
 
-export function getGhostRow(board: TetrisBoard, column: number): number | null {
-  for (let row = TETRIS_HEIGHT - 1; row >= 0; row -= 1) {
-    const index = row * TETRIS_WIDTH + column;
-    if (!board[index]) {
-      return row;
+const ALL_PIECES: TetrominoType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+
+function generateBag(): TetrominoType[] {
+  return [...ALL_PIECES].sort(() => Math.random() - 0.5);
+}
+
+function pullFromBag(bag: TetrominoType[]): { piece: TetrominoType; nextBag: TetrominoType[] } {
+  let currentBag = bag;
+  if (currentBag.length === 0) {
+    currentBag = generateBag();
+  }
+  const [piece, ...rest] = currentBag;
+  return { piece: piece ?? 'T', nextBag: rest };
+}
+
+export function canPlacePiece(
+  board: TetrisCell[],
+  matrix: number[][],
+  row: number,
+  col: number,
+  width = TETRIS_WIDTH,
+  height = TETRIS_HEIGHT,
+): boolean {
+  for (let r = 0; r < matrix.length; r += 1) {
+    for (let c = 0; c < matrix[r]!.length; c += 1) {
+      if (matrix[r]![c]) {
+        const targetR = row + r;
+        const targetC = col + c;
+        if (targetC < 0 || targetC >= width || targetR >= height) {
+          return false;
+        }
+        if (targetR >= 0 && board[targetR * width + targetC] !== null) {
+          return false;
+        }
+      }
     }
   }
-  return null;
+  return true;
+}
+
+export function getGhostPieceRow(
+  board: TetrisCell[],
+  matrix: number[][],
+  startRow: number,
+  col: number,
+  width = TETRIS_WIDTH,
+  height = TETRIS_HEIGHT,
+): number {
+  let ghostR = startRow;
+  while (canPlacePiece(board, matrix, ghostR + 1, col, width, height)) {
+    ghostR += 1;
+  }
+  return ghostR;
 }
 
 export function createRealtimeTetrisState(
-  target = 2,
-  speed = 600,
+  target = 4,
+  speed = 550,
 ): RealtimeTetrisState {
+  const bag1 = generateBag();
+  const { piece: firstPiece, nextBag: bag2 } = pullFromBag(bag1);
+  const { piece: secondPiece, nextBag: bag3 } = pullFromBag(bag2);
+
+  const matrix = TETROMINO_ROTATIONS[firstPiece][0]!;
+  const spawnCol = Math.floor((TETRIS_WIDTH - matrix[0]!.length) / 2);
+
   return {
-    board: createTetrisBoard(),
+    board: Array<TetrisCell>(TETRIS_WIDTH * TETRIS_HEIGHT).fill(null),
     target,
     speed,
     lines: 0,
     status: 'playing',
-    fallingCol: Math.floor(TETRIS_WIDTH / 2) - 1,
-    fallingRow: 0,
+    currentPiece: {
+      type: firstPiece,
+      rot: 0,
+      row: 0,
+      col: spawnCol,
+    },
+    nextPiece: secondPiece,
+    bag: bag3,
     actions: [],
   };
 }
 
-export function moveFallingCol(
+export function moveCurrentPiece(
   state: RealtimeTetrisState,
-  delta: -1 | 1,
-): RealtimeTetrisState {
-  if (state.status !== 'playing') return state;
-  const nextCol = Math.max(0, Math.min(TETRIS_WIDTH - 1, state.fallingCol + delta));
-  return {
-    ...state,
-    fallingCol: nextCol,
-  };
-}
-
-export function setFallingCol(
-  state: RealtimeTetrisState,
-  col: number,
-): RealtimeTetrisState {
-  if (state.status !== 'playing') return state;
-  const nextCol = Math.max(0, Math.min(TETRIS_WIDTH - 1, col));
-  return {
-    ...state,
-    fallingCol: nextCol,
-  };
-}
-
-export function lockAndDrop(
-  state: RealtimeTetrisState,
-  column: number,
+  deltaCol: -1 | 1,
 ): RealtimeTetrisState {
   if (state.status !== 'playing') return state;
 
-  const result = dropBlock(state.board, column);
-  const nextActions = [...state.actions, `drop:${column}`];
+  const matrix = TETROMINO_ROTATIONS[state.currentPiece.type][state.currentPiece.rot]!;
+  const nextCol = state.currentPiece.col + deltaCol;
 
-  if (result.overflow) {
+  if (canPlacePiece(state.board, matrix, state.currentPiece.row, nextCol)) {
     return {
       ...state,
-      actions: nextActions,
-      status: 'gameover',
+      currentPiece: {
+        ...state.currentPiece,
+        col: nextCol,
+      },
     };
   }
 
-  const nextLines = state.lines + result.cleared;
-  const nextStatus: TetrisStatus = nextLines >= state.target ? 'won' : 'playing';
+  return state;
+}
+
+export function rotateCurrentPiece(state: RealtimeTetrisState): RealtimeTetrisState {
+  if (state.status !== 'playing') return state;
+
+  const nextRot = (state.currentPiece.rot + 1) % 4;
+  const nextMatrix = TETROMINO_ROTATIONS[state.currentPiece.type][nextRot]!;
+
+  // Wall kicks: try current col, col - 1, col + 1, col - 2, col + 2
+  const offsets = [0, -1, 1, -2, 2];
+  for (const offset of offsets) {
+    const testCol = state.currentPiece.col + offset;
+    if (canPlacePiece(state.board, nextMatrix, state.currentPiece.row, testCol)) {
+      return {
+        ...state,
+        currentPiece: {
+          ...state.currentPiece,
+          rot: nextRot,
+          col: testCol,
+        },
+      };
+    }
+  }
+
+  return state;
+}
+
+export function lockAndDropCurrentPiece(
+  state: RealtimeTetrisState,
+  dropRow?: number,
+): RealtimeTetrisState {
+  if (state.status !== 'playing') return state;
+
+  const matrix = TETROMINO_ROTATIONS[state.currentPiece.type][state.currentPiece.rot]!;
+  const finalRow =
+    dropRow !== undefined
+      ? dropRow
+      : getGhostPieceRow(
+          state.board,
+          matrix,
+          state.currentPiece.row,
+          state.currentPiece.col,
+        );
+
+  const nextBoard = [...state.board];
+
+  // Stamp the active piece onto the board
+  for (let r = 0; r < matrix.length; r += 1) {
+    for (let c = 0; c < matrix[r]!.length; c += 1) {
+      if (matrix[r]![c]) {
+        const boardR = finalRow + r;
+        const boardC = state.currentPiece.col + c;
+        if (boardR >= 0 && boardR < TETRIS_HEIGHT && boardC >= 0 && boardC < TETRIS_WIDTH) {
+          nextBoard[boardR * TETRIS_WIDTH + boardC] = state.currentPiece.type;
+        }
+      }
+    }
+  }
+
+  const action = `place:${state.currentPiece.type}:${state.currentPiece.rot}:${state.currentPiece.col}`;
+  const nextActions = [...state.actions, action];
+
+  // Check full horizontal row line clears
+  const keptRows: TetrisCell[][] = [];
+  let clearedCount = 0;
+
+  for (let row = 0; row < TETRIS_HEIGHT; row += 1) {
+    const rowSlice = nextBoard.slice(row * TETRIS_WIDTH, (row + 1) * TETRIS_WIDTH);
+    if (rowSlice.every((cell) => cell !== null)) {
+      clearedCount += 1;
+    } else {
+      keptRows.push(rowSlice);
+    }
+  }
+
+  while (keptRows.length < TETRIS_HEIGHT) {
+    keptRows.unshift(Array<TetrisCell>(TETRIS_WIDTH).fill(null));
+  }
+
+  const resolvedBoard = keptRows.flat();
+  const nextLines = state.lines + clearedCount;
+
+  // Check victory
+  if (nextLines >= state.target) {
+    return {
+      ...state,
+      board: resolvedBoard,
+      lines: nextLines,
+      status: 'won',
+      actions: nextActions,
+    };
+  }
+
+  // Spawn next piece
+  const { piece: nextSpawnPiece, nextBag } = pullFromBag(state.bag);
+  const nextSpawnMatrix = TETROMINO_ROTATIONS[state.nextPiece][0]!;
+  const nextSpawnCol = Math.floor((TETRIS_WIDTH - nextSpawnMatrix[0]!.length) / 2);
+
+  // Check if board is topped out / cannot place next piece
+  if (!canPlacePiece(resolvedBoard, nextSpawnMatrix, 0, nextSpawnCol)) {
+    return {
+      ...state,
+      board: resolvedBoard,
+      lines: nextLines,
+      status: 'gameover',
+      actions: nextActions,
+    };
+  }
 
   return {
     ...state,
-    board: result.board,
+    board: resolvedBoard,
     lines: nextLines,
-    status: nextStatus,
+    status: 'playing',
     actions: nextActions,
-    fallingRow: 0,
-    fallingCol: Math.floor(TETRIS_WIDTH / 2) - 1,
+    currentPiece: {
+      type: state.nextPiece,
+      rot: 0,
+      row: 0,
+      col: nextSpawnCol,
+    },
+    nextPiece: nextSpawnPiece,
+    bag: nextBag,
   };
 }
 
-export function tickFallingBlock(state: RealtimeTetrisState): RealtimeTetrisState {
+export function tickCurrentPiece(state: RealtimeTetrisState): RealtimeTetrisState {
   if (state.status !== 'playing') return state;
 
-  const ghost = getGhostRow(state.board, state.fallingCol);
+  const matrix = TETROMINO_ROTATIONS[state.currentPiece.type][state.currentPiece.rot]!;
+  const nextRow = state.currentPiece.row + 1;
 
-  // If the column is full already
-  if (ghost === null) {
-    return lockAndDrop(state, state.fallingCol);
+  if (canPlacePiece(state.board, matrix, nextRow, state.currentPiece.col)) {
+    return {
+      ...state,
+      currentPiece: {
+        ...state.currentPiece,
+        row: nextRow,
+      },
+    };
   }
 
-  // If falling block reached the ghost row landing spot
-  if (state.fallingRow >= ghost) {
-    return lockAndDrop(state, state.fallingCol);
-  }
+  return lockAndDropCurrentPiece(state, state.currentPiece.row);
+}
 
-  return {
-    ...state,
-    fallingRow: state.fallingRow + 1,
-  };
+export function hardDropCurrentPiece(state: RealtimeTetrisState): RealtimeTetrisState {
+  if (state.status !== 'playing') return state;
+
+  const matrix = TETROMINO_ROTATIONS[state.currentPiece.type][state.currentPiece.rot]!;
+  const ghostRow = getGhostPieceRow(
+    state.board,
+    matrix,
+    state.currentPiece.row,
+    state.currentPiece.col,
+  );
+
+  return lockAndDropCurrentPiece(state, ghostRow);
 }
 
 export function restartTetrisGame(state: RealtimeTetrisState): RealtimeTetrisState {
-  return {
-    ...state,
-    board: createTetrisBoard(),
-    lines: 0,
-    status: 'playing',
-    fallingCol: Math.floor(TETRIS_WIDTH / 2) - 1,
-    fallingRow: 0,
-    actions: [],
-  };
+  return createRealtimeTetrisState(state.target, state.speed);
 }
