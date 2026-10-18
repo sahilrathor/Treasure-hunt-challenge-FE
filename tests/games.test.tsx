@@ -230,6 +230,44 @@ it('renders SpaceInvadersGame, moves ship, fires laser, and displays HUD', async
   expect(screen.getByText(/Invaders/i)).toBeInTheDocument();
 });
 
+it('renders NumberMergeGame, moves tiles, and updates score HUD', async () => {
+  const complete = vi.fn();
+  const { NumberMergeGame } = await import('@/features/games/number-merge/NumberMergeGame');
+  render(
+    <NumberMergeGame
+      challenge={{ target: 32, maxMoves: 40, challengeToken: 'merge-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  expect(screen.getByText(/Target:/i)).toBeInTheDocument();
+  expect(screen.getByText(/Peak:/i)).toBeInTheDocument();
+  expect(screen.getByText(/Moves:/i)).toBeInTheDocument();
+
+  // Move left
+  const leftBtn = screen.getByRole('button', { name: 'Move left' });
+  fireEvent.click(leftBtn);
+
+  // Peak tile should have merged to 4!
+  expect(screen.getAllByText('4').length).toBeGreaterThanOrEqual(1);
+  expect(complete).not.toHaveBeenCalled();
+});
+
+it('renders PatternRecallGame, shows watching phase, and handles user input', async () => {
+  const complete = vi.fn();
+  const { PatternRecallGame } = await import('@/features/games/pattern-recall/PatternRecallGame');
+  render(
+    <PatternRecallGame
+      challenge={{ sequence: [0, 1, 2], palette: 4, difficulty: 'easy', challengeToken: 'pattern-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  expect(screen.getByText(/Pattern Recall/i)).toBeInTheDocument();
+  expect(screen.getByText(/Watch the flashing pattern/i)).toBeInTheDocument();
+});
+
+
 
 
 

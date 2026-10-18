@@ -49,3 +49,137 @@ export function moveBoard(board: MergeBoard, direction: Direction, moveNumber: n
 }
 
 export const peakTile = (board: MergeBoard) => Math.max(...board);
+
+export function canMove(board: MergeBoard): boolean {
+  // If any cell is empty, a move is possible
+  if (board.some((v) => v === 0)) return true;
+
+  // Check horizontally and vertically adjacent matching pairs
+  for (let r = 0; r < 4; r += 1) {
+    for (let c = 0; c < 4; c += 1) {
+      const val = board[r * 4 + c]!;
+      if (c < 3 && val === board[r * 4 + (c + 1)]) return true;
+      if (r < 3 && val === board[(r + 1) * 4 + c]) return true;
+    }
+  }
+  return false;
+}
+
+export interface TileStyle {
+  bg: string;
+  text: string;
+  border: string;
+  glow?: string;
+  fontSize: string;
+}
+
+export function getTileStyle(value: number): TileStyle {
+  switch (value) {
+    case 2:
+      return {
+        bg: 'bg-slate-800 text-slate-100',
+        text: 'text-slate-100',
+        border: 'border-slate-700/60',
+        fontSize: 'text-2xl',
+      };
+    case 4:
+      return {
+        bg: 'bg-amber-950/70 text-amber-200',
+        text: 'text-amber-200',
+        border: 'border-amber-700/60',
+        fontSize: 'text-2xl',
+      };
+    case 8:
+      return {
+        bg: 'bg-orange-600 text-white',
+        text: 'text-white',
+        border: 'border-orange-400',
+        glow: 'shadow-md shadow-orange-600/40',
+        fontSize: 'text-2xl',
+      };
+    case 16:
+      return {
+        bg: 'bg-orange-500 text-white',
+        text: 'text-white',
+        border: 'border-orange-300',
+        glow: 'shadow-md shadow-orange-500/50',
+        fontSize: 'text-2xl',
+      };
+    case 32:
+      return {
+        bg: 'bg-rose-600 text-white',
+        text: 'text-white',
+        border: 'border-rose-400',
+        glow: 'shadow-md shadow-rose-600/50',
+        fontSize: 'text-2xl',
+      };
+    case 64:
+      return {
+        bg: 'bg-red-600 text-white',
+        text: 'text-white',
+        border: 'border-red-400',
+        glow: 'shadow-lg shadow-red-600/60',
+        fontSize: 'text-2xl',
+      };
+    case 128:
+      return {
+        bg: 'bg-amber-500 text-slate-950 font-black',
+        text: 'text-slate-950',
+        border: 'border-amber-300 ring-2 ring-amber-300/80',
+        glow: 'shadow-lg shadow-amber-500/70',
+        fontSize: 'text-xl',
+      };
+    case 256:
+      return {
+        bg: 'bg-amber-400 text-slate-950 font-black',
+        text: 'text-slate-950',
+        border: 'border-yellow-200 ring-2 ring-yellow-300',
+        glow: 'shadow-lg shadow-amber-400/80',
+        fontSize: 'text-xl',
+      };
+    case 512:
+      return {
+        bg: 'bg-emerald-500 text-white font-black',
+        text: 'text-white',
+        border: 'border-emerald-300 ring-2 ring-emerald-300',
+        glow: 'shadow-xl shadow-emerald-500/80',
+        fontSize: 'text-xl',
+      };
+    case 1024:
+      return {
+        bg: 'bg-cyan-500 text-slate-950 font-black',
+        text: 'text-slate-950',
+        border: 'border-cyan-200 ring-2 ring-cyan-200',
+        glow: 'shadow-xl shadow-cyan-400/90',
+        fontSize: 'text-lg',
+      };
+    case 2048:
+      return {
+        bg: 'bg-purple-600 text-white font-black',
+        text: 'text-white',
+        border: 'border-purple-300 ring-4 ring-purple-400',
+        glow: 'shadow-2xl shadow-purple-500/90 animate-pulse',
+        fontSize: 'text-lg',
+      };
+    default:
+      return value > 2048
+        ? {
+            bg: 'bg-gradient-to-br from-fuchsia-600 to-indigo-600 text-white font-black',
+            text: 'text-white',
+            border: 'border-fuchsia-300 ring-4 ring-fuchsia-400',
+            glow: 'shadow-2xl shadow-fuchsia-500/90 animate-pulse',
+            fontSize: 'text-base',
+          }
+        : {
+            bg: 'bg-slate-900/60 text-transparent',
+            text: 'text-transparent',
+            border: 'border-slate-800/40',
+            fontSize: 'text-xl',
+          };
+  }
+}
+
+export function restartNumberMergeGame(): MergeBoard {
+  return createBoard();
+}
+

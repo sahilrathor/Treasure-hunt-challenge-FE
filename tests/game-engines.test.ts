@@ -11,8 +11,18 @@ import {
 import { parseFen, squareName } from '@/features/games/chess-puzzle';
 import { createFlappyState, flap, stepFlappy } from '@/features/games/flappy-bird';
 import { isValidMatch } from '@/features/games/memory-match';
-import { createBoard, moveBoard, peakTile } from '@/features/games/number-merge';
-import { patternStepIsCorrect, revealSpeed } from '@/features/games/pattern-recall';
+import {
+  canMove,
+  createBoard,
+  getTileStyle,
+  moveBoard,
+  peakTile,
+} from '@/features/games/number-merge';
+import {
+  PAD_DEFINITIONS,
+  patternStepIsCorrect,
+  revealSpeed,
+} from '@/features/games/pattern-recall';
 import { createSnakeState, moveSnake } from '@/features/games/snake';
 import {
   createInvaderState,
@@ -185,16 +195,39 @@ describe('isolated game engines', () => {
     expect(squareName(60)).toBe('e1');
   });
 
-  it('performs a real Number Merge', () => {
+  it('performs a real Number Merge and validates board movement & tile styling', () => {
     const moved = moveBoard(createBoard(), 'left', 1);
     expect(moved.changed).toBe(true);
     expect(peakTile(moved.board)).toBe(4);
+    expect(canMove(moved.board)).toBe(true);
+
+    // Full board with no adjacent matches cannot move
+    const jammedBoard = [
+      2, 4, 2, 4,
+      4, 2, 4, 2,
+      2, 4, 2, 4,
+      4, 2, 4, 2,
+    ];
+    expect(canMove(jammedBoard)).toBe(false);
+
+    // Solvable board
+    const solvableBoard = [
+      2, 2, 4, 8,
+      16, 32, 64, 128,
+      256, 512, 1024, 2048,
+      2, 4, 8, 16,
+    ];
+    expect(canMove(solvableBoard)).toBe(true);
+
+    const style = getTileStyle(2048);
+    expect(style.text).toBe('text-white');
   });
 
-  it('checks Pattern Recall steps and difficulty speed', () => {
+  it('checks Pattern Recall steps, difficulty speed, and pad definitions', () => {
     expect(patternStepIsCorrect([2, 1], [], 2)).toBe(true);
     expect(patternStepIsCorrect([2, 1], [2], 0)).toBe(false);
     expect(revealSpeed('hard')).toBeLessThan(revealSpeed('easy'));
+    expect(PAD_DEFINITIONS.length).toBeGreaterThanOrEqual(8);
   });
 
   it('fires Space Invader shots from the selected ship column', () => {

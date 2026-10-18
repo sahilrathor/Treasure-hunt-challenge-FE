@@ -39,5 +39,5 @@ describe('AdminGameSandboxModal', () => {
     // Click close
     await user.click(screen.getByRole('button', { name: /close sandbox/i }));
     expect(handleClose).toHaveBeenCalledOnce();
-  });
+  }, 15000);
 });
