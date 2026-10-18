@@ -14,7 +14,16 @@ import { isValidMatch } from '@/features/games/memory-match';
 import { createBoard, moveBoard, peakTile } from '@/features/games/number-merge';
 import { patternStepIsCorrect, revealSpeed } from '@/features/games/pattern-recall';
 import { createSnakeState, moveSnake } from '@/features/games/snake';
-import { createInvaderState, fireShot, moveShip } from '@/features/games/space-invaders';
+import {
+  createInvaderState,
+  createRealtimeInvaderState,
+  firePlayerLaser,
+  fireShot,
+  moveRealtimeShip,
+  moveShip,
+  restartRealtimeInvaders,
+  stepRealtimeInvaders,
+} from '@/features/games/space-invaders';
 import {
   createTetrisBoard,
   createRealtimeTetrisState,
@@ -192,6 +201,59 @@ describe('isolated game engines', () => {
     let state = moveShip(createInvaderState(), -1);
     state = fireShot(state, 8).state;
     expect(state.destroyed).toEqual([4]);
+  });
+
+  it('runs real-time Space Invader arcade engine with marching fleet, lasers, and collisions', () => {
+    let state = createRealtimeInvaderState(4, 3);
+    expect(state.status).toBe('playing');
+    expect(state.invaders.length).toBe(4);
+    expect(state.lives).toBe(3);
+
+    // Steer ship left and right
+    state = moveRealtimeShip(state, 100);
+    expect(state.shipX).toBe(100);
+    state = moveRealtimeShip(state, 200);
+    expect(state.shipX).toBe(200);
+
+    // Fire laser
+    state = firePlayerLaser(state);
+    expect(state.bullets.length).toBe(1);
+    expect(state.bullets[0]!.fromPlayer).toBe(true);
+    const bulletY = state.bullets[0]!.y;
+
+    // Step physics moves laser upwards
+    state = stepRealtimeInvaders(state);
+    expect(state.bullets[0]!.y).toBeLessThan(bulletY);
+
+    // Position a laser directly on an enemy to verify hit collision & particle burst
+    const targetEnemy = state.invaders[0]!;
+    state.bullets = [
+      {
+        id: 999,
+        x: targetEnemy.x + targetEnemy.width / 2,
+        y: targetEnemy.y + targetEnemy.height / 2,
+        vy: -7,
+        fromPlayer: true,
+      },
+    ];
+    state = stepRealtimeInvaders(state);
+    expect(state.destroyed).toContain(targetEnemy.id);
+    expect(state.actions).toContain(`fire:${targetEnemy.id}`);
+    expect(state.particles.length).toBeGreaterThan(0);
+
+    // Test enemy bomb vs ship collision
+    state.bullets = [
+      { id: 888, x: state.shipX + 10, y: 360, vy: 3, fromPlayer: false },
+    ];
+    state = stepRealtimeInvaders(state);
+    expect(state.lives).toBe(2);
+    expect(state.invulnerableTicks).toBeGreaterThan(0);
+
+    // Restart resets fleet and lives
+    state = restartRealtimeInvaders(state);
+    expect(state.lives).toBe(3);
+    expect(state.destroyed).toEqual([]);
+    expect(state.status).toBe('playing');
   });
 
   it('flaps bird wings and steps pipes through Flappy Bird physics', () => {

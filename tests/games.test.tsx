@@ -203,5 +203,33 @@ it('renders MemoryMatchGame with dynamic grid, flips cards, and matches pairs', 
   expect(screen.getAllByText(/Diamond/i).length).toBe(2);
 });
 
+it('renders SpaceInvadersGame, moves ship, fires laser, and displays HUD', async () => {
+  const complete = vi.fn();
+  const { SpaceInvadersGame } = await import('@/features/games/space-invaders/SpaceInvadersGame');
+  render(
+    <SpaceInvadersGame
+      challenge={{ target: 4, challengeToken: 'invader-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  // Check HUD
+  expect(screen.getByText(/Invaders/i)).toBeInTheDocument();
+  expect(screen.getByText(/Battle Active/i)).toBeInTheDocument();
+
+  // Move ship left and right
+  const leftBtn = screen.getByRole('button', { name: /Move ship left/i });
+  const rightBtn = screen.getByRole('button', { name: /Move ship right/i });
+  fireEvent.click(leftBtn);
+  fireEvent.click(rightBtn);
+
+  // Fire laser
+  const fireBtn = screen.getByRole('button', { name: /Fire laser/i });
+  fireEvent.click(fireBtn);
+
+  expect(screen.getByText(/Invaders/i)).toBeInTheDocument();
+});
+
+
 
 
