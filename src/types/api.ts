@@ -29,7 +29,8 @@ export type GameCode =
   | 'snake'
   | 'brick-breaker'
   | 'memory-match'
-  | 'chess-puzzle'
+  | 'flappy-bird'
+  // | 'chess-puzzle' // commented out per request - replaced by Flappy Bird
   | 'number-merge'
   | 'space-invaders'
   | 'pattern-recall';

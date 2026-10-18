@@ -1,5 +1,6 @@
 import { createBrickState, launchBall, movePaddle } from '@/features/games/brick-breaker';
 import { parseFen, squareName } from '@/features/games/chess-puzzle';
+import { createFlappyState, flap, stepFlappy } from '@/features/games/flappy-bird';
 import { isValidMatch } from '@/features/games/memory-match';
 import { createBoard, moveBoard, peakTile } from '@/features/games/number-merge';
 import { patternStepIsCorrect, revealSpeed } from '@/features/games/pattern-recall';
@@ -63,5 +64,23 @@ describe('isolated game engines', () => {
     let state = moveShip(createInvaderState(), -1);
     state = fireShot(state, 8).state;
     expect(state.destroyed).toEqual([4]);
+  });
+
+  it('flaps bird wings and steps pipes through Flappy Bird physics', () => {
+    let state = createFlappyState(2, 120, 5);
+    expect(state.status).toBe('idle');
+    state = flap(state);
+    expect(state.status).toBe('playing');
+    expect(state.velocity).toBeLessThan(0);
+
+    // Simulate stepping until pipe 0 passes the bird
+    for (let tick = 0; tick < 70 && state.status === 'playing'; tick += 1) {
+      // Keep bird in the safe zone
+      if (state.birdY > 200) {
+        state = flap(state);
+      }
+      state = stepFlappy(state);
+    }
+    expect(state.actions.some((a) => a === 'flap')).toBe(true);
   });
 });
