@@ -3,10 +3,12 @@ import {
   Check,
   Clipboard,
   ExternalLink,
+  Gamepad2,
   Key,
   Plus,
   QrCode,
   Search,
+  Shuffle,
   Trash2,
   Trophy,
   Users,
@@ -25,6 +27,8 @@ import {
 } from './ChangePasswordModal';
 import { ChangeAdminPasswordModal } from './ChangeAdminPasswordModal';
 import { TeamRoundsModal } from './TeamRoundsModal';
+import { AdminGameSandboxModal } from './AdminGameSandboxModal';
+import { RoundGameMappingModal } from './RoundGameMappingModal';
 import { Button } from '@/components/atoms/Button';
 import { Field } from '@/components/atoms/Field';
 import { Panel } from '@/components/atoms/Panel';
@@ -76,6 +80,8 @@ export function AdminPage() {
   const [adminPasswordOpen, setAdminPasswordOpen] = useState(false);
   const [participantSearch, setParticipantSearch] = useState('');
   const [selectedTeamRounds, setSelectedTeamRounds] = useState<string | null>(null);
+  const [sandboxOpen, setSandboxOpen] = useState(false);
+  const [roundMappingOpen, setRoundMappingOpen] = useState(false);
 
   const allParticipants = useMemo(() => {
     return setup.teams.flatMap((team) =>
@@ -272,6 +278,24 @@ export function AdminPage() {
               {setup.event.status}
             </span>
           ) : null}
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-10 text-xs bg-slate-800/80 hover:bg-slate-700"
+            onClick={() => setSandboxOpen(true)}
+          >
+            <Gamepad2 className="mr-1.5 text-cyan-300" size={16} /> Game Sandbox
+          </Button>
+          {setup.event ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-10 text-xs bg-slate-800/80 hover:bg-slate-700"
+              onClick={() => setRoundMappingOpen(true)}
+            >
+              <Shuffle className="mr-1.5 text-cyan-300" size={16} /> Round Games
+            </Button>
+          ) : null}
           <Button asChild variant="secondary" className="min-h-10 text-xs">
             <Link to={setup.event ? `/leaderboard?eventId=${setup.event.id}` : '/leaderboard'}>
               <Trophy className="mr-1.5 text-amber-300" size={16} /> Leaderboard
@@ -356,15 +380,25 @@ export function AdminPage() {
                   Download and place the matching QR at each checkpoint.
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!qrEditable || busy === 'all-qrs'}
-                onClick={() => void generateAllQrs()}
-              >
-                <QrCode className="mr-2" size={18} />
-                {busy === 'all-qrs' ? 'Generating…' : 'Generate all QRs'}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="text-xs"
+                  onClick={() => setRoundMappingOpen(true)}
+                >
+                  <Shuffle className="mr-1.5 text-cyan-300" size={15} /> Map Round Games
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!qrEditable || busy === 'all-qrs'}
+                  onClick={() => void generateAllQrs()}
+                >
+                  <QrCode className="mr-2" size={18} />
+                  {busy === 'all-qrs' ? 'Generating…' : 'Generate all QRs'}
+                </Button>
+              </div>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {setup.checkpoints.map((checkpoint) => (
@@ -675,6 +709,21 @@ export function AdminPage() {
         teamId={selectedTeamRounds}
         onClose={() => setSelectedTeamRounds(null)}
       />
+
+      <AdminGameSandboxModal
+        isOpen={sandboxOpen}
+        onClose={() => setSandboxOpen(false)}
+      />
+
+      {setup.event && (
+        <RoundGameMappingModal
+          isOpen={roundMappingOpen}
+          onClose={() => setRoundMappingOpen(false)}
+          eventId={setup.event.id}
+          checkpoints={setup.checkpoints}
+          onSaved={() => void load()}
+        />
+      )}
     </div>
   );
 }

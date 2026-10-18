@@ -1,5 +1,5 @@
 import { api, idempotencyHeaders } from './api-client';
-import type { ApiEnvelope, Assignment, Identity, Progress } from '@/types/api';
+import type { AdminGame, ApiEnvelope, Assignment, Identity, Progress } from '@/types/api';
 
 export const huntApi = {
   async login(input: { identifier: string; password: string }) {
@@ -134,6 +134,28 @@ export const huntApi = {
           }>;
         }>
       >(`/admin/teams/${teamId}/rounds`)
+    ).data.data;
+  },
+  async listGames() {
+    return (await api.get<ApiEnvelope<AdminGame[]>>('/admin/games')).data.data;
+  },
+  async updateRoundGame(roundId: string, gameId: string | null) {
+    return (
+      await api.patch<ApiEnvelope<{ id: string }>>(`/admin/rounds/${roundId}`, { gameId })
+    ).data.data;
+  },
+  async mapRoundGames(
+    eventId: string,
+    payload: {
+      setAllRandom?: boolean;
+      mappings?: Array<{ roundId: string; gameId: string | null }>;
+    },
+  ) {
+    return (
+      await api.post<ApiEnvelope<{ updated: boolean }>>(
+        `/admin/events/${eventId}/round-games`,
+        payload,
+      )
     ).data.data;
   },
 };

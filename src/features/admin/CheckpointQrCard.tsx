@@ -6,6 +6,12 @@ export interface CheckpointSummary {
   id: string;
   label: string;
   sequence: number;
+  round_id?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  clue?: string;
+  game_id?: string | null;
+  game_name?: string | null;
+  game_code?: string | null;
 }
 
 export interface GeneratedCheckpointQr extends CheckpointSummary {
@@ -34,6 +40,12 @@ export function CheckpointQrCard({
             Checkpoint {checkpoint.sequence}
           </p>
           <h3 className="font-black">{checkpoint.label}</h3>
+          <div className="mt-1 text-xs text-slate-400">
+            <span>Game: </span>
+            <span className="font-bold text-amber-300">
+              {checkpoint.game_name ? checkpoint.game_name : '🎲 Random (Unplayed)'}
+            </span>
+          </div>
         </div>
         <QrCode className="text-slate-500" />
       </div>

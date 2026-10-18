@@ -22,6 +22,23 @@ export interface Assignment {
   cooldownSeconds: number;
   round: number;
   checkpointLabel: string;
+  activeAttempt?: { id: string; started_at: string } | null;
+}
+
+export interface GameLevelConfig {
+  id: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  config: Record<string, unknown>;
+  maxAttempts: number;
+  cooldownSeconds: number;
+}
+
+export interface AdminGame {
+  id: string;
+  code: GameCode;
+  name: string;
+  enabled: boolean;
+  levels: GameLevelConfig[];
 }
 
 export type GameCode =

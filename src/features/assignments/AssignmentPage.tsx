@@ -25,7 +25,12 @@ export function AssignmentPage() {
     if (id)
       void huntApi
         .assignment(id)
-        .then(setAssignment)
+        .then((data) => {
+          setAssignment(data);
+          if (data.activeAttempt) {
+            setAttempt(data.activeAttempt);
+          }
+        })
         .catch((cause: Error) => setError(cause.message));
   }, [id]);
   async function start() {
