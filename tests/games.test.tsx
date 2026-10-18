@@ -106,3 +106,34 @@ it('completes Snake challenge when food target is reached without crash', async 
     achieved: 1,
   });
 });
+
+it('renders BrickBreakerGame, moves paddle and launches ball', async () => {
+  const complete = vi.fn();
+  const { BrickBreakerGame } = await import('@/features/games/brick-breaker/BrickBreakerGame');
+  render(
+    <BrickBreakerGame
+      challenge={{ target: 5, lives: 3, challengeToken: 'brick-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  // Checks HUD
+  expect(screen.getByText(/Bricks 0 \/ 5/i)).toBeInTheDocument();
+  expect(screen.getByText(/Ready to Launch/i)).toBeInTheDocument();
+
+  // Move paddle left and right
+  const leftBtn = screen.getByRole('button', { name: /Move paddle left/i });
+  const rightBtn = screen.getByRole('button', { name: /Move paddle right/i });
+  fireEvent.click(leftBtn);
+  fireEvent.click(rightBtn);
+
+  // Launch ball
+  const launchBtn = screen.getByRole('button', { name: /Launch Ball/i });
+  fireEvent.click(launchBtn);
+
+  // Status should update to Ball in Play
+  expect(screen.getByRole('button', { name: /Ball in Play/i })).toBeInTheDocument();
+  expect(screen.getAllByText(/Ball in Play/i).length).toBeGreaterThanOrEqual(1);
+});
+
+

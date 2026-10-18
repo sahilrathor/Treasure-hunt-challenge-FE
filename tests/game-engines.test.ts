@@ -1,4 +1,13 @@
-import { createBrickState, launchBall, movePaddle } from '@/features/games/brick-breaker';
+import {
+  createBrickState,
+  createRealtimeBrickState,
+  launchBall,
+  launchRealtimeBall,
+  movePaddle,
+  moveRealtimePaddle,
+  restartRealtimeBrickGame,
+  stepRealtimeBrickGame,
+} from '@/features/games/brick-breaker';
 import { parseFen, squareName } from '@/features/games/chess-puzzle';
 import { createFlappyState, flap, stepFlappy } from '@/features/games/flappy-bird';
 import { isValidMatch } from '@/features/games/memory-match';
@@ -34,6 +43,64 @@ describe('isolated game engines', () => {
     state = result.state;
     expect(state.volleys).toBe(1);
     expect(result.action).toMatch(/^(hit:\d+|miss)$/);
+  });
+
+  it('simulates 60fps real-time Brick Breaker physics, bounces, brick hits and misses', () => {
+    let state = createRealtimeBrickState(5, 3);
+    expect(state.status).toBe('ready');
+    expect(state.bricks).toHaveLength(5);
+    expect(state.lives).toBe(3);
+
+    // Moving paddle while ready keeps ball on paddle
+    state = moveRealtimePaddle(state, 100);
+    expect(state.paddleX).toBe(100);
+    expect(state.ballX).toBe(100 + 34); // center of paddle
+
+    // Launch ball
+    state = launchRealtimeBall(state);
+    expect(state.status).toBe('playing');
+    expect(state.vy).toBeLessThan(0); // moving upwards!
+
+    // Step physics: ball must move
+    const prevBallY = state.ballY;
+    state = stepRealtimeBrickGame(state);
+    expect(state.ballY).not.toBe(prevBallY);
+
+    // Simulate ceiling bounce
+    state.ballY = 5;
+    state.vy = -3;
+    state = stepRealtimeBrickGame(state);
+    expect(state.vy).toBeGreaterThan(0); // bounced down!
+
+    // Simulate brick collision
+    const targetBrick = state.bricks[0]!;
+    state.ballX = targetBrick.x + targetBrick.width / 2;
+    state.ballY = targetBrick.y + targetBrick.height + 4;
+    state.vy = -3;
+    state = stepRealtimeBrickGame(state);
+    expect(state.broken).toContain(targetBrick.id);
+    expect(state.actions).toContain(`hit:${targetBrick.id}`);
+
+    // Simulate paddle bounce
+    state.ballX = state.paddleX + 34;
+    state.ballY = 356;
+    state.vy = 4;
+    state = stepRealtimeBrickGame(state);
+    expect(state.vy).toBeLessThan(0); // bounced upwards!
+
+    // Simulate miss (ball drops past bottom)
+    state.ballY = 410;
+    state.vy = 4;
+    state = stepRealtimeBrickGame(state);
+    expect(state.lives).toBe(2);
+    expect(state.actions).toContain('miss');
+    expect(state.status).toBe('ready'); // resets ball on paddle for next life
+
+    // Restart resets lives and state
+    state = restartRealtimeBrickGame(state);
+    expect(state.lives).toBe(3);
+    expect(state.broken).toEqual([]);
+    expect(state.status).toBe('ready');
   });
 
   it('matches Memory cards only when their values agree', () => {
