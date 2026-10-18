@@ -52,6 +52,40 @@ it('emits evidence only after the arcade target is reached', async () => {
   });
 });
 
+it('shows OUT when Tetris board overflows and does not complete', async () => {
+  const user = userEvent.setup();
+  const complete = vi.fn();
+  render(
+    <TetrisGame
+      challenge={{ target: 5, challengeToken: 'overflow-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  // Fill column 1 until it overflows (height is 10, so 11 drops in column 1)
+  for (let i = 0; i < 11; i += 1) {
+    const btn = screen.queryByRole('button', { name: 'Drop column 1' });
+    if (btn && !btn.hasAttribute('disabled')) {
+      await user.click(btn);
+    }
+  }
+
+  // Expect BOARD FULL! OUT banner, NOT complete
+  expect(screen.getAllByText(/BOARD FULL! OUT/i).length).toBeGreaterThanOrEqual(1);
+  expect(complete).not.toHaveBeenCalled();
+
+  // Try Again button should be present and functional
+  const tryAgain = screen.getAllByRole('button', { name: /Try Again/i })[0]!;
+  expect(tryAgain).toBeInTheDocument();
+  await user.click(tryAgain);
+
+  // OUT message should be cleared
+  expect(screen.queryByText(/BOARD FULL! OUT/i)).not.toBeInTheDocument();
+});
+
+
+
+
 it('shows OUT when Snake hits boundary and does not complete', async () => {
   const complete = vi.fn();
   const { SnakeGame } = await import('@/features/games/snake/SnakeGame');

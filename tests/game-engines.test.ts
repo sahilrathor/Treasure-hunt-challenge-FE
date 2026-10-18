@@ -15,7 +15,16 @@ import { createBoard, moveBoard, peakTile } from '@/features/games/number-merge'
 import { patternStepIsCorrect, revealSpeed } from '@/features/games/pattern-recall';
 import { createSnakeState, moveSnake } from '@/features/games/snake';
 import { createInvaderState, fireShot, moveShip } from '@/features/games/space-invaders';
-import { createTetrisBoard, dropBlock } from '@/features/games/tetris';
+import {
+  createTetrisBoard,
+  createRealtimeTetrisState,
+  dropBlock,
+  getGhostRow,
+  lockAndDrop,
+  moveFallingCol,
+  restartTetrisGame,
+  tickFallingBlock,
+} from '@/features/games/tetris';
 
 describe('isolated game engines', () => {
   it('clears a complete Tetris row', () => {
@@ -27,6 +36,38 @@ describe('isolated game engines', () => {
       lines += result.cleared;
     }
     expect(lines).toBe(1);
+  });
+
+  it('runs real-time Tetris with falling blocks, steering, ghost row, and line clear', () => {
+    let state = createRealtimeTetrisState(1, 400);
+    expect(state.status).toBe('playing');
+    expect(state.fallingCol).toBe(2);
+
+    // Steer left and right
+    state = moveFallingCol(state, -1);
+    expect(state.fallingCol).toBe(1);
+    state = moveFallingCol(state, 1);
+    expect(state.fallingCol).toBe(2);
+
+    // Ghost row on empty column is bottom row 9
+    expect(getGhostRow(state.board, 2)).toBe(9);
+
+    // Tick down
+    state = tickFallingBlock(state);
+    expect(state.fallingRow).toBe(1);
+
+    // Drop into all columns to clear a line
+    for (let col = 0; col < 6; col += 1) {
+      state = lockAndDrop(state, col);
+    }
+    expect(state.lines).toBe(1);
+    expect(state.status).toBe('won');
+    expect(state.actions).toHaveLength(6);
+
+    // Restart resets lines and status
+    state = restartTetrisGame(state);
+    expect(state.status).toBe('playing');
+    expect(state.lines).toBe(0);
   });
 
   it('moves Snake and detects food using deterministic state', () => {
