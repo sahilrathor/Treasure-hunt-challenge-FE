@@ -36,3 +36,29 @@ it('shows and downloads a generated checkpoint QR', () => {
     'checkpoint-1-qr.png',
   );
 });
+
+it('displays the assigned clue and fires onEditClue when clicked', () => {
+  const handleEditClue = vi.fn();
+  render(
+    <CheckpointQrCard
+      checkpoint={{
+        ...checkpoint,
+        clue: 'Behind the third shelf in the quiet reading zone.',
+      }}
+      busy={false}
+      disabled={false}
+      onGenerate={() => undefined}
+      onEditClue={handleEditClue}
+    />,
+  );
+
+  expect(screen.getByText(/Round 1 Clue/i)).toBeInTheDocument();
+  expect(
+    screen.getByText(/"Behind the third shelf in the quiet reading zone\."/i),
+  ).toBeInTheDocument();
+
+  const editBtn = screen.getByRole('button', { name: /Edit Clue/i });
+  editBtn.click();
+  expect(handleEditClue).toHaveBeenCalledOnce();
+});
+

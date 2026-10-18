@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   Check,
   Clipboard,
+  Compass,
   ExternalLink,
   Gamepad2,
   Key,
@@ -29,6 +30,7 @@ import { ChangeAdminPasswordModal } from './ChangeAdminPasswordModal';
 import { TeamRoundsModal } from './TeamRoundsModal';
 import { AdminGameSandboxModal } from './AdminGameSandboxModal';
 import { RoundGameMappingModal } from './RoundGameMappingModal';
+import { CheckpointCluesModal } from './CheckpointCluesModal';
 import { Button } from '@/components/atoms/Button';
 import { Field } from '@/components/atoms/Field';
 import { Panel } from '@/components/atoms/Panel';
@@ -82,6 +84,8 @@ export function AdminPage() {
   const [selectedTeamRounds, setSelectedTeamRounds] = useState<string | null>(null);
   const [sandboxOpen, setSandboxOpen] = useState(false);
   const [roundMappingOpen, setRoundMappingOpen] = useState(false);
+  const [cluesModalOpen, setCluesModalOpen] = useState(false);
+  const [selectedCheckpointForClue, setSelectedCheckpointForClue] = useState<string | null>(null);
 
   const allParticipants = useMemo(() => {
     return setup.teams.flatMap((team) =>
@@ -287,14 +291,27 @@ export function AdminPage() {
             <Gamepad2 className="mr-1.5 text-cyan-300" size={16} /> Game Sandbox
           </Button>
           {setup.event ? (
-            <Button
-              type="button"
-              variant="secondary"
-              className="min-h-10 text-xs bg-slate-800/80 hover:bg-slate-700"
-              onClick={() => setRoundMappingOpen(true)}
-            >
-              <Shuffle className="mr-1.5 text-cyan-300" size={16} /> Round Games
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-10 text-xs bg-slate-800/80 hover:bg-slate-700"
+                onClick={() => {
+                  setSelectedCheckpointForClue(null);
+                  setCluesModalOpen(true);
+                }}
+              >
+                <Compass className="mr-1.5 text-amber-300" size={16} /> Checkpoint Clues
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-10 text-xs bg-slate-800/80 hover:bg-slate-700"
+                onClick={() => setRoundMappingOpen(true)}
+              >
+                <Shuffle className="mr-1.5 text-cyan-300" size={16} /> Round Games
+              </Button>
+            </>
           ) : null}
           <Button asChild variant="secondary" className="min-h-10 text-xs">
             <Link to={setup.event ? `/leaderboard?eventId=${setup.event.id}` : '/leaderboard'}>
@@ -385,6 +402,17 @@ export function AdminPage() {
                   type="button"
                   variant="secondary"
                   className="text-xs"
+                  onClick={() => {
+                    setSelectedCheckpointForClue(null);
+                    setCluesModalOpen(true);
+                  }}
+                >
+                  <Compass className="mr-1.5 text-amber-300" size={15} /> Checkpoint Clues
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="text-xs"
                   onClick={() => setRoundMappingOpen(true)}
                 >
                   <Shuffle className="mr-1.5 text-cyan-300" size={15} /> Map Round Games
@@ -409,6 +437,10 @@ export function AdminPage() {
                   busy={busy === `qr-${checkpoint.id}`}
                   disabled={!qrEditable || busy === 'all-qrs'}
                   onGenerate={() => void generateQr(checkpoint)}
+                  onEditClue={() => {
+                    setSelectedCheckpointForClue(checkpoint.id);
+                    setCluesModalOpen(true);
+                  }}
                 />
               ))}
             </div>
@@ -721,6 +753,20 @@ export function AdminPage() {
           onClose={() => setRoundMappingOpen(false)}
           eventId={setup.event.id}
           checkpoints={setup.checkpoints}
+          onSaved={() => void load()}
+        />
+      )}
+
+      {setup.event && (
+        <CheckpointCluesModal
+          isOpen={cluesModalOpen}
+          onClose={() => {
+            setCluesModalOpen(false);
+            setSelectedCheckpointForClue(null);
+          }}
+          eventId={setup.event.id}
+          checkpoints={setup.checkpoints}
+          initialCheckpointId={selectedCheckpointForClue}
           onSaved={() => void load()}
         />
       )}

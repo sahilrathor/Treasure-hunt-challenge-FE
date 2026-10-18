@@ -1,4 +1,4 @@
-import { Download, QrCode, RefreshCw } from 'lucide-react';
+import { Compass, Download, Edit3, QrCode, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/atoms/Button';
 
@@ -25,34 +25,59 @@ export function CheckpointQrCard({
   busy,
   disabled,
   onGenerate,
+  onEditClue,
 }: {
   checkpoint: CheckpointSummary;
   generated?: GeneratedCheckpointQr;
   busy: boolean;
   disabled: boolean;
   onGenerate(): void;
+  onEditClue?(): void;
 }) {
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">
-            Checkpoint {checkpoint.sequence}
-          </p>
-          <h3 className="font-black">{checkpoint.label}</h3>
-          <div className="mt-1 text-xs text-slate-400">
-            <span>Game: </span>
-            <span className="font-bold text-amber-300">
-              {checkpoint.game_name ? checkpoint.game_name : '🎲 Random (Unplayed)'}
-            </span>
+    <article className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 flex flex-col justify-between">
+      <div>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">
+              Checkpoint {checkpoint.sequence}
+            </p>
+            <h3 className="font-black text-slate-100">{checkpoint.label}</h3>
+            <div className="mt-1 text-xs text-slate-400">
+              <span>Game: </span>
+              <span className="font-bold text-amber-300">
+                {checkpoint.game_name ? checkpoint.game_name : '🎲 Random (Unplayed)'}
+              </span>
+            </div>
           </div>
+          <QrCode className="text-slate-500" />
         </div>
-        <QrCode className="text-slate-500" />
+
+        {/* Clue section */}
+        <div className="mt-3 rounded-xl border border-slate-800/80 bg-slate-900/60 p-3 text-xs">
+          <div className="flex items-center justify-between text-slate-400 font-bold mb-1">
+            <span className="flex items-center gap-1.5 text-amber-300">
+              <Compass size={14} /> Round {checkpoint.sequence} Clue
+            </span>
+            {onEditClue && (
+              <button
+                type="button"
+                onClick={onEditClue}
+                className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1 font-semibold text-[11px] transition"
+              >
+                <Edit3 size={12} /> Edit Clue
+              </button>
+            )}
+          </div>
+          <p className="text-slate-300 italic line-clamp-2 mt-0.5">
+            {checkpoint.clue ? `"${checkpoint.clue}"` : `Proceed to Checkpoint ${checkpoint.sequence}.`}
+          </p>
+        </div>
       </div>
 
       {generated ? (
-        <>
-          <div className="mt-4 rounded-xl bg-white p-3">
+        <div className="mt-4">
+          <div className="rounded-xl bg-white p-3">
             <img
               src={generated.imageUrl}
               alt={`QR code for ${checkpoint.label}`}
@@ -74,7 +99,7 @@ export function CheckpointQrCard({
               <RefreshCw className="mr-2" size={17} /> Replace
             </Button>
           </div>
-        </>
+        </div>
       ) : (
         <Button
           type="button"

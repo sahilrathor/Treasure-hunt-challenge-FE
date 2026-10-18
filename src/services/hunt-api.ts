@@ -158,6 +158,25 @@ export const huntApi = {
       )
     ).data.data;
   },
+  async updateCheckpointClues(
+    eventId: string,
+    clues: Array<{ roundId: string; clue: string }>,
+  ) {
+    return (
+      await api.post<ApiEnvelope<{ updated: boolean }>>(
+        `/admin/events/${eventId}/clues`,
+        { clues },
+      )
+    ).data.data;
+  },
+  async updateRoundClue(roundId: string, clue: string) {
+    return (
+      await api.patch<ApiEnvelope<{ id: string; clue: string }>>(
+        `/admin/rounds/${roundId}`,
+        { clue },
+      )
+    ).data.data;
+  },
   async reloadAssignment(assignmentId: string) {
     return (
       await api.post<ApiEnvelope<Assignment>>(`/assignments/${assignmentId}/reload`)
