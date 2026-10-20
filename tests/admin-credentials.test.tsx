@@ -29,10 +29,10 @@ describe('admin credentials modal', () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText('Admin username'), {
+    fireEvent.change(screen.getByRole('textbox'), {
       target: { value: 'quest-admin' },
     });
-    fireEvent.change(screen.getByLabelText('New admin password'), {
+    fireEvent.change(screen.getByPlaceholderText('At least 6 characters'), {
       target: { value: 'NewSecret123!' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Update Credentials' }));

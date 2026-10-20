@@ -95,6 +95,13 @@ export const huntApi = {
       >(`/admin/participants/${participantId}/password`, password ? { password } : {})
     ).data.data;
   },
+  async resetAssignmentAttempts(assignmentId: string) {
+    return (
+      await api.post<ApiEnvelope<{ assignmentId: string; resetCount: number }>>(
+        `/admin/assignments/${assignmentId}/attempts/reset`,
+      )
+    ).data.data;
+  },
   async changeAdminPassword(password: string) {
     return (
       await api.patch<ApiEnvelope<{ updated: boolean }>>('/admin/account/password', { password })

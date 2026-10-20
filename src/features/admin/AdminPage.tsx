@@ -11,6 +11,7 @@ import {
   QrCode,
   Search,
   Shuffle,
+  Square,
   Trash2,
   Trophy,
   TimerReset,
@@ -136,15 +137,31 @@ export function AdminPage() {
 
   async function saveCheckpoints(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (
+      setup.event &&
+      checkpointCount < setup.event.checkpoint_count &&
+      !window.confirm(
+        `Reduce the hunt from ${setup.event.checkpoint_count} to ${checkpointCount} checkpoints?`,
+      )
+    ) {
+      return;
+    }
     setBusy('checkpoints');
     setError('');
     setNotice('');
     try {
-      const response = await api.post<
-        ApiEnvelope<{
-          checkpoints: Array<CheckpointSummary & { scanUrl: string }>;
-        }>
-      >('/admin/simple/setup', { checkpointCount });
+      const response = setup.event
+        ? await api.patch<
+            ApiEnvelope<{
+              checkpointCount: number;
+              checkpoints: Array<CheckpointSummary & { scanUrl: string }>;
+            }>
+          >(`/admin/events/${setup.event.id}/checkpoint-count`, { checkpointCount })
+        : await api.post<
+            ApiEnvelope<{
+              checkpoints: Array<CheckpointSummary & { scanUrl: string }>;
+            }>
+          >('/admin/simple/setup', { checkpointCount });
       const generated = await Promise.all(
         response.data.data.checkpoints.map(async (checkpoint) => ({
           ...checkpoint,
@@ -155,10 +172,15 @@ export function AdminPage() {
           }),
         })),
       );
-      setCheckpointQrs(
-        Object.fromEntries(generated.map((checkpoint) => [checkpoint.id, checkpoint])),
+      setCheckpointQrs((current) => ({
+        ...current,
+        ...Object.fromEntries(generated.map((checkpoint) => [checkpoint.id, checkpoint])),
+      }));
+      setNotice(
+        generated.length
+          ? `${checkpointCount} checkpoints are ready. Download the new QR codes.`
+          : `Checkpoint count changed to ${checkpointCount}.`,
       );
-      setNotice(`${checkpointCount} checkpoints are ready.`);
       await load();
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not create checkpoints.');
@@ -264,6 +286,23 @@ export function AdminPage() {
     }
   }
 
+  async function endHunt() {
+    if (!setup.event) return;
+    if (!window.confirm('End the hunt now? Participants will not be able to continue.')) return;
+    setBusy('finish');
+    setError('');
+    setNotice('');
+    try {
+      await api.post(`/admin/events/${setup.event.id}/control`, { action: 'FINISH' });
+      setNotice('The hunt has ended. Final results are now locked.');
+      await load();
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'Could not end the hunt.');
+    } finally {
+      setBusy('');
+    }
+  }
+
   function updateMember(index: number, field: keyof Member, value: string) {
     setMembers((current) =>
       current.map((member, memberIndex) =>
@@ -273,6 +312,7 @@ export function AdminPage() {
   }
 
   const editable = !setup.event || setup.event.status === 'DRAFT';
+  const checkpointEditable = !setup.event || setup.event.status !== 'FINISHED';
   const qrEditable = setup.event?.status !== 'FINISHED';
 
   return (
@@ -290,6 +330,18 @@ export function AdminPage() {
             <span className="rounded-full border border-slate-700 px-4 py-2 text-sm font-bold text-cyan-300">
               {setup.event.status}
             </span>
+          ) : null}
+          {setup.event && ['RUNNING', 'PAUSED'].includes(setup.event.status) ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-10 border-rose-500/40 text-xs text-rose-300 hover:border-rose-400"
+              disabled={busy === 'finish'}
+              onClick={() => void endHunt()}
+            >
+              <Square className="mr-1.5" size={14} />
+              {busy === 'finish' ? 'Ending…' : 'End Hunt'}
+            </Button>
           ) : null}
           <Button
             type="button"
@@ -385,7 +437,9 @@ export function AdminPage() {
           </span>
           <div>
             <h2 className="text-xl font-black">Number of checkpoints</h2>
-            <p className="text-sm text-slate-400">You can choose between 1 and 8.</p>
+            <p className="text-sm text-slate-400">
+              Choose between 1 and 8. You can change this until the hunt ends.
+            </p>
           </div>
         </div>
         <form className="mt-5 flex flex-wrap items-end gap-3" onSubmit={saveCheckpoints}>
@@ -395,13 +449,17 @@ export function AdminPage() {
             min={1}
             max={8}
             required
-            disabled={!editable}
+            disabled={!checkpointEditable}
             value={checkpointCount}
             onChange={(event) => setCheckpointCount(Number(event.target.value))}
             className="w-36"
           />
-          <Button disabled={!editable || busy === 'checkpoints'}>
-            {busy === 'checkpoints' ? 'Setting up…' : 'Save checkpoints'}
+          <Button disabled={!checkpointEditable || busy === 'checkpoints'}>
+            {busy === 'checkpoints'
+              ? 'Saving…'
+              : setup.event
+                ? 'Change checkpoints'
+                : 'Save checkpoints'}
           </Button>
         </form>
 

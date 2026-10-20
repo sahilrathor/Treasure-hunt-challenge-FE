@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   AlertCircle,
   Award,
@@ -6,6 +6,7 @@ import {
   Clock,
   Gamepad2,
   Hourglass,
+  RotateCcw,
   User,
   X,
   XCircle,
@@ -62,20 +63,50 @@ export function TeamRoundsModal({ teamId, onClose }: Props) {
   const [data, setData] = useState<{ team: TeamData; rounds: RoundInfo[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [resetting, setResetting] = useState<string | null>(null);
+
+  const loadTeam = useCallback(async (id: string) => {
+    setLoading(true);
+    setError('');
+    try {
+      setData(await huntApi.teamRounds(id));
+    } catch {
+      setError('Could not load round details for this team.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!teamId) {
       setData(null);
       return;
     }
-    setLoading(true);
+    setNotice('');
+    void loadTeam(teamId);
+  }, [teamId, loadTeam]);
+
+  async function resetAttempts(assignmentId: string) {
+    if (!teamId) return;
+    if (!window.confirm('Reset all attempts for this active round?')) return;
+    setResetting(assignmentId);
     setError('');
-    huntApi
-      .teamRounds(teamId)
-      .then((res) => setData(res))
-      .catch(() => setError('Could not load round details for this team.'))
-      .finally(() => setLoading(false));
-  }, [teamId]);
+    setNotice('');
+    try {
+      const result = await huntApi.resetAssignmentAttempts(assignmentId);
+      setNotice(
+        result.resetCount
+          ? `${result.resetCount} attempt${result.resetCount === 1 ? '' : 's'} reset. The team can retry now.`
+          : 'Attempts are already reset. The team can retry now.',
+      );
+      await loadTeam(teamId);
+    } catch {
+      setError('Could not reset attempts for this round.');
+    } finally {
+      setResetting(null);
+    }
+  }
 
   if (!teamId) return null;
 
@@ -127,6 +158,11 @@ export function TeamRoundsModal({ teamId, onClose }: Props) {
           <div className="mt-4 flex items-center gap-2 rounded-xl bg-rose-500/10 p-3 text-xs text-rose-300">
             <AlertCircle size={16} />
             <span>{error}</span>
+          </div>
+        ) : null}
+        {notice ? (
+          <div className="mt-4 rounded-xl bg-emerald-500/10 p-3 text-xs font-semibold text-emerald-300">
+            {notice}
           </div>
         ) : null}
 
@@ -275,6 +311,24 @@ export function TeamRoundsModal({ teamId, onClose }: Props) {
                       <p className="mt-2 text-xs italic text-slate-500">
                         Assigned. No attempts submitted yet.
                       </p>
+                    ) : null}
+
+                    {isAssigned && round.assignment_id ? (
+                      <div className="mt-3 flex justify-end border-t border-slate-800/80 pt-3">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="min-h-9 px-3 text-xs"
+                          disabled={resetting === round.assignment_id}
+                          onClick={() => void resetAttempts(round.assignment_id!)}
+                        >
+                          <RotateCcw
+                            size={14}
+                            className={`mr-1.5 ${resetting === round.assignment_id ? 'animate-spin' : ''}`}
+                          />
+                          {resetting === round.assignment_id ? 'Resetting…' : 'Reset Attempts'}
+                        </Button>
+                      </div>
                     ) : null}
                   </div>
                 );
