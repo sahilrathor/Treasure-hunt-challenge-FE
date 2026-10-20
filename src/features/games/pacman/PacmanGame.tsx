@@ -360,6 +360,9 @@ export function PacmanGame({ challenge, disabled, onComplete }: GameProps) {
           </button>
         </div>
       </div>
+      <p className="text-[11px] text-slate-500 text-center">
+        Guide Pac-Man to eat glowing pellets while dodging roaming ghosts.
+      </p>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { Panel } from '@/components/atoms/Panel';
 import { ApiError } from '@/services/api-client';
 import { huntApi } from '@/services/hunt-api';
 import type { Assignment } from '@/types/api';
-import { gameRegistry } from '../games/game-registry';
+import { gameRegistry, getGameInfo } from '../games/game-registry';
 import { GameShell } from '../games/shared/GameShell';
 import { CooldownCountdown } from '../games/shared/CooldownCountdown';
 
@@ -181,6 +181,8 @@ export function AssignmentPage() {
       </Panel>
     );
 
+  const gameInfo = getGameInfo(assignment.gameCode);
+
   if (!attempt)
     return (
       <Panel>
@@ -189,7 +191,10 @@ export function AssignmentPage() {
             <p className="text-xs font-black uppercase tracking-[.2em] text-cyan-300">
               Round {assignment.round} · {assignment.difficulty}
             </p>
-            <h1 className="mt-2 text-4xl font-black">{assignment.gameName}</h1>
+            <div className="mt-2 flex items-center gap-2.5">
+              <span className="text-3xl">{gameInfo.emoji}</span>
+              <h1 className="text-3xl sm:text-4xl font-black">{assignment.gameName}</h1>
+            </div>
           </div>
           <Button
             type="button"
@@ -204,33 +209,59 @@ export function AssignmentPage() {
             {reloading ? 'Reloading…' : 'Reload game'}
           </Button>
         </div>
-        <p className="mt-3 text-slate-400">Checkpoint: {assignment.checkpointLabel}</p>
-        <p className="mt-1 text-slate-400">
-          Attempts used: {assignment.attemptCount} / {assignment.maxAttempts}
-        </p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-400">
+          <p>Checkpoint: <span className="text-slate-200 font-semibold">{assignment.checkpointLabel}</span></p>
+          <span>·</span>
+          <p>
+            Attempts used: <span className="text-cyan-300 font-bold">{assignment.attemptCount}</span> / {assignment.maxAttempts}
+          </p>
+        </div>
+
+        {/* Game Description & Rules Card */}
+        <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950/70 p-4 space-y-3.5">
+          <div>
+            <p className="text-xs font-bold text-cyan-300 uppercase tracking-wider">{gameInfo.tagline}</p>
+            <p className="mt-1 text-sm text-slate-300 leading-relaxed">
+              {assignment.gameDescription || gameInfo.description}
+            </p>
+          </div>
+
+          <div className="border-t border-slate-800/80 pt-3 space-y-1.5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">How to Play:</p>
+            <ul className="list-disc list-inside space-y-1 text-xs text-slate-300 leading-relaxed">
+              {gameInfo.howToPlay.map((tip, idx) => (
+                <li key={idx}>{tip}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="border-t border-slate-800/80 pt-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
+            <div>
+              <span className="text-slate-500 font-semibold">Controls: </span>
+              <span className="text-slate-200 font-medium">{gameInfo.controls}</span>
+            </div>
+            <div>
+              <span className="text-slate-500 font-semibold">Round Goal: </span>
+              <span className="text-amber-300 font-bold">{gameInfo.objective}</span>
+            </div>
+          </div>
+        </div>
+
         {error ? (
           <p role="alert" className="mt-4 text-rose-300">
             {error}
           </p>
         ) : null}
+
         <div className="mt-6 flex flex-col gap-2.5">
           <Button
-            className="w-full"
+            className="w-full text-base py-3"
             disabled={busy || reloading || assignment.status !== 'ASSIGNED'}
             onClick={() => void start()}
           >
             {busy ? 'Starting…' : 'Start official attempt'}
           </Button>
-          {/* <Button
-            type="button"
-            variant="secondary"
-            className="w-full text-xs"
-            disabled={reloading || busy}
-            onClick={() => void reloadGame()}
-          >
-            <RotateCw className={`mr-1.5 ${reloading ? 'animate-spin' : ''}`} size={14} />
-            {reloading ? 'Reloading latest game…' : 'Reload latest game for this round'}
-          </Button> */}
         </div>
       </Panel>
     );
@@ -238,7 +269,7 @@ export function AssignmentPage() {
   return (
     <GameShell
       title={assignment.gameName}
-      instructions={`Complete the ${assignment.difficulty} target. The server owns the official timer.`}
+      instructions={`${assignment.gameDescription || gameInfo.description} | Goal: ${gameInfo.objective} | Controls: ${gameInfo.controls}`}
       startedAt={attempt.started_at}
     >
       <div className="mb-2 flex justify-end">

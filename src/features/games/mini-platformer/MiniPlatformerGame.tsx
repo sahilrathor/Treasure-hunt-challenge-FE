@@ -351,6 +351,9 @@ export function MiniPlatformerGame({ challenge, disabled, onComplete }: GameProp
           <span>JUMP</span>
         </button>
       </div>
+      <p className="text-[11px] text-slate-500 text-center">
+        Run and jump across platforms to gather coins without hitting red spikes.
+      </p>
     </div>
   );
 }

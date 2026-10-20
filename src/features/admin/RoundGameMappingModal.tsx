@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Dices, Shuffle, X } from 'lucide-react';
 
 import { Button } from '@/components/atoms/Button';
+import { getGameInfo } from '../games/game-registry';
 import { huntApi } from '@/services/hunt-api';
 import type { AdminGame } from '@/types/api';
 
@@ -174,15 +175,24 @@ export function RoundGameMappingModal({
                 key={roundId}
                 className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-800 bg-slate-900/80 hover:border-slate-700 transition"
               >
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-cyan-400/10 text-cyan-300 text-xs font-black">
                       {cp.sequence}
                     </span>
-                    <span className="font-bold text-sm text-slate-200">
+                    <span className="font-bold text-sm text-slate-200 truncate">
                       {cp.label}
                     </span>
                   </div>
+                  {currentSelected && (() => {
+                    const mappedGame = games.find((g) => g.id === currentSelected);
+                    const info = getGameInfo(mappedGame?.code);
+                    return (
+                      <p className="mt-1 text-[11px] text-slate-400 truncate pl-7">
+                        {info.emoji} {mappedGame?.description || info.description}
+                      </p>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">

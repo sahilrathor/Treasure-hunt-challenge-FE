@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { CheckCircle2, RotateCcw, X, Zap } from 'lucide-react';
 
 import { Button } from '@/components/atoms/Button';
-import { gameRegistry } from '../games/game-registry';
+import { gameRegistry, getGameInfo } from '../games/game-registry';
 import type { GameCode } from '@/types/api';
 
 const gamesList: Array<{ code: GameCode; name: string; emoji: string }> = [
@@ -271,6 +271,30 @@ export function AdminGameSandboxModal({
             </Button>
           </div>
 
+          {/* Game Description Card */}
+          {(() => {
+            const info = getGameInfo(selectedGame);
+            return (
+              <div className="rounded-xl bg-slate-900 border border-slate-800 p-3 text-xs space-y-1.5 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{info.emoji}</span>
+                  <span className="font-bold text-slate-100">{info.name}</span>
+                  <span className="text-slate-500">·</span>
+                  <span className="text-cyan-300 font-medium">{info.tagline}</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed">{info.description}</p>
+                <div className="pt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-400 border-t border-slate-800/80">
+                  <div>
+                    <span className="text-slate-500 font-semibold">Controls:</span> {info.controls}
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-semibold">Goal:</span> {info.objective}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Difficulty Info */}
           <div className="rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-slate-300 flex items-center justify-between">
             <div>
@@ -313,6 +337,26 @@ export function AdminGameSandboxModal({
               {selectedGame === 'pattern-recall' && (
                 <span>
                   Memorize sequence of <span className="font-bold text-amber-300">{challenge.length}</span> colors
+                </span>
+              )}
+              {selectedGame === 'mini-platformer' && (
+                <span>
+                  Collect <span className="font-bold text-amber-300">{challenge.target}</span> coins ({challenge.lives} lives, Speed: {challenge.speed})
+                </span>
+              )}
+              {selectedGame === 'crack-the-code' && (
+                <span>
+                  Deduce <span className="font-bold text-amber-300">{challenge.digits}</span>-digit passcode (Max: {challenge.maxGuesses} guesses)
+                </span>
+              )}
+              {selectedGame === 'sliding-puzzle' && (
+                <span>
+                  Solve <span className="font-bold text-amber-300">{challenge.size}×{challenge.size}</span> puzzle ({challenge.scrambleMoves} scramble moves)
+                </span>
+              )}
+              {selectedGame === 'pacman' && (
+                <span>
+                  Eat <span className="font-bold text-amber-300">{challenge.target}</span> pellets ({challenge.ghosts} ghosts, {challenge.lives} lives)
                 </span>
               )}
             </div>

@@ -16,6 +16,7 @@ export interface Assignment {
   status: 'ASSIGNED' | 'PASSED' | 'CANCELLED';
   gameCode: GameCode;
   gameName: string;
+  gameDescription?: string;
   difficulty: 'easy' | 'medium' | 'hard';
   challenge: Record<string, unknown>;
   maxAttempts: number;
@@ -38,6 +39,7 @@ export interface AdminGame {
   id: string;
   code: GameCode;
   name: string;
+  description?: string;
   enabled: boolean;
   levels: GameLevelConfig[];
 }

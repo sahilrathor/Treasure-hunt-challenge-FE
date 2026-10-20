@@ -31,3 +31,5 @@ export const gameRegistry: Record<GameCode, ComponentType<GameProps>> = {
   'sliding-puzzle': SlidingPuzzleGame,
   pacman: PacmanGame,
 };
+
+export { GAME_METADATA, getGameInfo, type GameInfo } from './game-metadata';
