@@ -195,6 +195,7 @@ export function AssignmentPage() {
             type="button"
             variant="secondary"
             className="text-xs shrink-0"
+            aria-label="Reload latest game for this round"
             disabled={reloading || busy}
             title="Reload latest game mapped by admin for this round"
             onClick={() => void reloadGame()}

@@ -14,6 +14,10 @@ const gamesList: Array<{ code: GameCode; name: string; emoji: string }> = [
   { code: 'memory-match', name: 'Memory Match', emoji: '🎴' },
   { code: 'number-merge', name: 'Number Merge (2048)', emoji: '🔢' },
   { code: 'pattern-recall', name: 'Pattern Recall', emoji: '🎨' },
+  { code: 'mini-platformer', name: 'Mini Platformer', emoji: '🏃' },
+  { code: 'crack-the-code', name: 'Crack the Code', emoji: '🔐' },
+  { code: 'sliding-puzzle', name: 'Sliding Puzzle', emoji: '🧩' },
+  { code: 'pacman', name: 'Pac-Man', emoji: '🟡' },
 ];
 
 type Difficulty = 'easy' | 'medium' | 'hard';
@@ -106,6 +110,57 @@ export function AdminGameSandboxModal({
           challengeToken: token,
         };
       }
+      case 'mini-platformer':
+        return {
+          target: difficulty === 'easy' ? 3 : difficulty === 'medium' ? 5 : 8,
+          speed: difficulty === 'easy' ? 3.5 : difficulty === 'medium' ? 4.0 : 4.5,
+          lives: difficulty === 'easy' ? 3 : difficulty === 'medium' ? 3 : 2,
+          difficulty,
+          challengeToken: token,
+        };
+      case 'crack-the-code': {
+        const digits = difficulty === 'easy' ? 3 : 4;
+        const maxGuesses = difficulty === 'hard' ? 5 : 6;
+        const maxDigit = difficulty === 'easy' ? 6 : difficulty === 'medium' ? 8 : 9;
+        const allowDuplicates = difficulty === 'hard';
+        const pool = Array.from({ length: maxDigit }, (_, i) => i + 1);
+        const code: number[] = [];
+        if (!allowDuplicates) {
+          for (let i = 0; i < digits; i++) {
+            const idx = Math.floor(Math.random() * pool.length);
+            code.push(pool.splice(idx, 1)[0]!);
+          }
+        } else {
+          for (let i = 0; i < digits; i++) {
+            code.push(Math.floor(Math.random() * maxDigit) + 1);
+          }
+        }
+        return {
+          digits,
+          maxGuesses,
+          maxDigit,
+          allowDuplicates,
+          code,
+          difficulty,
+          challengeToken: token,
+        };
+      }
+      case 'sliding-puzzle':
+        return {
+          size: 3,
+          scrambleMoves: difficulty === 'easy' ? 12 : difficulty === 'medium' ? 25 : 45,
+          difficulty,
+          challengeToken: token,
+        };
+      case 'pacman':
+        return {
+          target: difficulty === 'easy' ? 25 : difficulty === 'medium' ? 40 : 60,
+          ghosts: difficulty === 'easy' ? 1 : difficulty === 'medium' ? 2 : 3,
+          speed: difficulty === 'easy' ? 1.8 : difficulty === 'medium' ? 2.2 : 2.6,
+          lives: difficulty === 'easy' ? 3 : difficulty === 'medium' ? 3 : 2,
+          difficulty,
+          challengeToken: token,
+        };
       default:
         return { target: 3, difficulty, challengeToken: token };
     }

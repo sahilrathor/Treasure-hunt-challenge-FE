@@ -306,4 +306,117 @@ describe('isolated game engines', () => {
     }
     expect(state.actions.some((a) => a === 'flap')).toBe(true);
   });
+
+  it('runs mini-platformer physics, jump, movement, and coin collection', async () => {
+    const { createPlatformerState, jumpPlayer, movePlayer, stepPlatformer, restartAttempt } =
+      await import('@/features/games/mini-platformer/engine');
+
+    let state = createPlatformerState(3, 3.5, 3, 'easy');
+    expect(state.status).toBe('playing');
+    expect(state.player.grounded).toBe(false);
+
+    // Jump when grounded
+    state.player.grounded = true;
+    state = jumpPlayer(state);
+    expect(state.player.vy).toBeLessThan(0);
+
+    // Steer right
+    state = movePlayer(state, 'right');
+    expect(state.player.vx).toBeGreaterThan(0);
+
+    // Step physics
+    state = stepPlatformer(state);
+    expect(state.player.x).toBeGreaterThan(10);
+
+    // Place player directly onto coin 0
+    const coin0 = state.coins[0]!;
+    state.player.x = coin0.x;
+    state.player.y = coin0.y;
+    state = stepPlatformer(state);
+    expect(state.coinsCollected).toBe(1);
+
+    // Restart
+    state = restartAttempt(state);
+    expect(state.lives).toBe(3);
+    expect(state.coinsCollected).toBe(0);
+  });
+
+  it('evaluates crack-the-code guesses with exact and partial feedback', async () => {
+    const {
+      createCrackTheCodeState,
+      appendDigit,
+      backspaceDigit,
+      clearInput,
+      evaluateGuess,
+    } = await import('@/features/games/crack-the-code/engine');
+
+    let state = createCrackTheCodeState(3, 6, 6, false);
+    expect(state.status).toBe('playing');
+
+    // Append digits and test backspace
+    state = appendDigit(state, 1);
+    state = appendDigit(state, 2);
+    expect(state.currentInput).toEqual([1, 2]);
+
+    state = backspaceDigit(state);
+    expect(state.currentInput).toEqual([1]);
+
+    state = clearInput(state);
+    expect(state.currentInput).toEqual([]);
+
+    // Evaluate guess against secret [1, 2, 3]
+    const secret = [1, 2, 3];
+    // Guess [1, 3, 5] -> exact: 1 (for 1), partial: 1 (for 3)
+    const result1 = evaluateGuess([1, 3, 5], secret);
+    expect(result1.exact).toBe(1);
+    expect(result1.partial).toBe(1);
+
+    // Guess [1, 2, 3] -> exact: 3, partial: 0
+    const result2 = evaluateGuess([1, 2, 3], secret);
+    expect(result2.exact).toBe(3);
+    expect(result2.partial).toBe(0);
+  });
+
+  it('runs sliding-puzzle tile slide mechanics and win check', async () => {
+    const { createSlidingPuzzleState, canSlideTile, slideTile, isPuzzleSolved } =
+      await import('@/features/games/sliding-puzzle/engine');
+
+    // Pre-configured tiles: [1, 2, 3, 4, 5, 6, 7, 0, 8]
+    // Empty tile is at index 7. Tile 8 is at index 8.
+    let state = createSlidingPuzzleState(3, 0, [1, 2, 3, 4, 5, 6, 7, 0, 8]);
+    expect(state.status).toBe('playing');
+    expect(isPuzzleSolved([1, 2, 3, 4, 5, 6, 7, 8, 0], 3)).toBe(true);
+
+    const emptyIdx = state.tiles.indexOf(0);
+    expect(canSlideTile(8, emptyIdx, 3)).toBe(true);
+    expect(canSlideTile(0, emptyIdx, 3)).toBe(false);
+
+    // Slide tile 8 into empty space (pos 7)
+    state = slideTile(state, 8);
+    expect(state.moves).toEqual([8]);
+    expect(state.moveCount).toBe(1);
+    expect(state.tiles).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 0]);
+    expect(state.status).toBe('won');
+  });
+
+  it('runs Pacman movement, pellet eating, and lives', async () => {
+    const { createPacmanState, setPacmanDirection, stepPacman, restartAttempt } =
+      await import('@/features/games/pacman/engine');
+
+    let state = createPacmanState(5, 1, 2.0, 3);
+    expect(state.status).toBe('playing');
+    expect(state.lives).toBe(3);
+
+    // Set direction right and step
+    state = setPacmanDirection(state, 'right');
+    const startX = state.pacman.x;
+    state = stepPacman(state);
+    expect(state.pacman.x).toBeGreaterThan(startX);
+
+    // Restart resets
+    state = restartAttempt(state);
+    expect(state.lives).toBe(3);
+    expect(state.score).toBe(0);
+  });
 });
+

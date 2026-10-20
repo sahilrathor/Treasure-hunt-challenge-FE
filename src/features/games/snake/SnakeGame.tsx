@@ -6,10 +6,10 @@ import { Button } from '@/components/atoms/Button';
 import type { GameProps } from '../shared/types';
 
 const controls = [
-  ['up', ArrowUp],
-  ['left', ArrowLeft],
-  ['down', ArrowDown],
-  ['right', ArrowRight],
+  ['up', ArrowUp, 'col-start-2 row-start-1'],
+  ['left', ArrowLeft, 'col-start-1 row-start-2'],
+  ['down', ArrowDown, 'col-start-2 row-start-2'],
+  ['right', ArrowRight, 'col-start-3 row-start-2'],
 ] as const;
 
 export function SnakeGame({ challenge, disabled, onComplete }: GameProps) {
@@ -154,14 +154,13 @@ export function SnakeGame({ challenge, disabled, onComplete }: GameProps) {
       </div>
 
       <div className="mx-auto grid grid-cols-3 gap-2">
-        {controls.map(([direction, Icon], index) => (
+        {controls.map(([direction, Icon, position]) => (
           <Button
             key={direction}
             type="button"
             variant="secondary"
             aria-label={`Move ${direction}`}
-            style={{ gridColumn: index === 0 ? '2' : undefined }}
-            className="size-14 p-0"
+            className={`size-14 p-0 ${position}`}
             disabled={disabled || state.over || isWon}
             onClick={() => move(direction)}
           >

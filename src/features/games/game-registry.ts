@@ -2,10 +2,14 @@ import type { ComponentType } from 'react';
 import { BrickBreakerGame } from './brick-breaker';
 // Chess puzzle commented out per request - replaced by Flappy Bird
 // import { ChessPuzzleGame } from './chess-puzzle';
+import { CrackTheCodeGame } from './crack-the-code';
 import { FlappyBirdGame } from './flappy-bird';
 import { MemoryMatchGame } from './memory-match';
+import { MiniPlatformerGame } from './mini-platformer';
 import { NumberMergeGame } from './number-merge';
+import { PacmanGame } from './pacman';
 import { PatternRecallGame } from './pattern-recall';
+import { SlidingPuzzleGame } from './sliding-puzzle';
 import { SnakeGame } from './snake';
 import { SpaceInvadersGame } from './space-invaders';
 import { TetrisGame } from './tetris';
@@ -22,4 +26,8 @@ export const gameRegistry: Record<GameCode, ComponentType<GameProps>> = {
   'number-merge': NumberMergeGame,
   'space-invaders': SpaceInvadersGame,
   'pattern-recall': PatternRecallGame,
+  'mini-platformer': MiniPlatformerGame,
+  'crack-the-code': CrackTheCodeGame,
+  'sliding-puzzle': SlidingPuzzleGame,
+  pacman: PacmanGame,
 };

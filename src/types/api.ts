@@ -51,7 +51,11 @@ export type GameCode =
   // | 'chess-puzzle' // commented out per request - replaced by Flappy Bird
   | 'number-merge'
   | 'space-invaders'
-  | 'pattern-recall';
+  | 'pattern-recall'
+  | 'mini-platformer'
+  | 'crack-the-code'
+  | 'sliding-puzzle'
+  | 'pacman';
 
 export interface Progress {
   status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'DISQUALIFIED';

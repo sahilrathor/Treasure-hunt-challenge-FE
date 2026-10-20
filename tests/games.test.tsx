@@ -7,10 +7,14 @@ import { gameRegistry } from '@/features/games/game-registry';
 import { TetrisGame } from '@/features/games/tetris/TetrisGame';
 import type { GameCode } from '@/types/api';
 
-it('registers the eight game modules and handles an unknown code safely', () => {
-  expect(Object.keys(gameRegistry)).toHaveLength(8);
+it('registers the twelve game modules and handles an unknown code safely', () => {
+  expect(Object.keys(gameRegistry)).toHaveLength(12);
   expect(gameRegistry['unknown' as GameCode]).toBeUndefined();
   expect(gameRegistry['flappy-bird']).toBeDefined();
+  expect(gameRegistry['mini-platformer']).toBeDefined();
+  expect(gameRegistry['crack-the-code']).toBeDefined();
+  expect(gameRegistry['sliding-puzzle']).toBeDefined();
+  expect(gameRegistry['pacman']).toBeDefined();
 });
 
 it('renders FlappyBirdGame and flaps wings on action', async () => {
@@ -266,6 +270,82 @@ it('renders PatternRecallGame, shows watching phase, and handles user input', as
   expect(screen.getByText(/Pattern Recall/i)).toBeInTheDocument();
   expect(screen.getByText(/Watch the flashing pattern/i)).toBeInTheDocument();
 });
+
+it('renders MiniPlatformerGame with controls and HUD', async () => {
+  const complete = vi.fn();
+  const { MiniPlatformerGame } = await import('@/features/games/mini-platformer/MiniPlatformerGame');
+  render(
+    <MiniPlatformerGame
+      challenge={{ target: 3, speed: 3.5, lives: 3, difficulty: 'easy', challengeToken: 'platform-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  expect(screen.getByText(/Coins:/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Move left/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Jump/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Move right/i })).toBeInTheDocument();
+});
+
+it('renders CrackTheCodeGame and submits guesses', async () => {
+  const complete = vi.fn();
+  const { CrackTheCodeGame } = await import('@/features/games/crack-the-code/CrackTheCodeGame');
+  render(
+    <CrackTheCodeGame
+      challenge={{ digits: 3, maxGuesses: 6, maxDigit: 6, code: [1, 2, 3], challengeToken: 'code-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  expect(screen.getByText(/Guesses:/i)).toBeInTheDocument();
+  expect(screen.getByText(/Crack the secret/i)).toBeInTheDocument();
+
+  // Press digits 1, 2, 3 and submit
+  fireEvent.click(screen.getByRole('button', { name: '1' }));
+  fireEvent.click(screen.getByRole('button', { name: '2' }));
+  fireEvent.click(screen.getByRole('button', { name: '3' }));
+  fireEvent.click(screen.getByRole('button', { name: /CHECK CODE/i }));
+
+  expect(complete).toHaveBeenCalled();
+});
+
+it('renders SlidingPuzzleGame and allows sliding tiles', async () => {
+  const complete = vi.fn();
+  const { SlidingPuzzleGame } = await import('@/features/games/sliding-puzzle/SlidingPuzzleGame');
+  // Solved state: [1, 2, 3, 4, 5, 6, 7, 8, 0]
+  // One move away: swap 8 and 0 -> [1, 2, 3, 4, 5, 6, 7, 0, 8]
+  render(
+    <SlidingPuzzleGame
+      challenge={{ size: 3, initialTiles: [1, 2, 3, 4, 5, 6, 7, 0, 8], challengeToken: 'slide-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  expect(screen.getByText(/Moves:/i)).toBeInTheDocument();
+  expect(screen.getByText(/Goal: 1 to/i)).toBeInTheDocument();
+
+  // Click on tile 8 (at index 8) to slide it left into empty space (index 7)
+  const tile8 = screen.getByRole('button', { name: /Slide tile 8/i });
+  fireEvent.click(tile8);
+
+  expect(complete).toHaveBeenCalled();
+});
+
+it('renders PacmanGame and shows game controls', async () => {
+  const complete = vi.fn();
+  const { PacmanGame } = await import('@/features/games/pacman/PacmanGame');
+  render(
+    <PacmanGame
+      challenge={{ target: 10, ghosts: 1, speed: 1.8, lives: 3, challengeToken: 'pacman-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  expect(screen.getByText(/Pellets:/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Move Left/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Move Up/i })).toBeInTheDocument();
+});
+
 
 
 
