@@ -80,11 +80,11 @@ describe('RoundGameMappingModal', () => {
       expect(huntApi.listGames).toHaveBeenCalledOnce();
     });
 
-    const selects = screen.getAllByRole('combobox');
-    expect(selects).toHaveLength(2);
+    const gameSelects = screen.getAllByRole('combobox', { name: /select game for/i });
+    expect(gameSelects).toHaveLength(2);
 
     // Change round 1 to Flappy Bird
-    await user.selectOptions(selects[0]!, 'game-flappy');
+    await user.selectOptions(gameSelects[0]!, 'game-flappy');
 
     // Click Save Mappings
     await user.click(screen.getByRole('button', { name: /save mappings/i }));
@@ -92,8 +92,8 @@ describe('RoundGameMappingModal', () => {
     await waitFor(() => {
       expect(huntApi.mapRoundGames).toHaveBeenCalledWith('event-1', {
         mappings: [
-          { roundId: 'round-1', gameId: 'game-flappy' },
-          { roundId: 'round-2', gameId: 'game-snake' },
+          { roundId: 'round-1', gameId: 'game-flappy', difficulty: 'easy' },
+          { roundId: 'round-2', gameId: 'game-snake', difficulty: 'medium' },
         ],
       });
       expect(handleSaved).toHaveBeenCalledOnce();
@@ -117,8 +117,8 @@ describe('RoundGameMappingModal', () => {
     const randomBtn = screen.getByRole('button', { name: /set all to random/i });
     await user.click(randomBtn);
 
-    const selects = screen.getAllByRole('combobox') as HTMLSelectElement[];
-    expect(selects[0]?.value).toBe('');
-    expect(selects[1]?.value).toBe('');
+    const gameSelects = screen.getAllByRole('combobox', { name: /select game for/i }) as HTMLSelectElement[];
+    expect(gameSelects[0]?.value).toBe('');
+    expect(gameSelects[1]?.value).toBe('');
   });
 });

@@ -5,6 +5,7 @@ import {
   Compass,
   ExternalLink,
   Gamepad2,
+  Gauge,
   Key,
   Plus,
   QrCode,
@@ -12,6 +13,7 @@ import {
   Shuffle,
   Trash2,
   Trophy,
+  TimerReset,
   Users,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -31,10 +33,13 @@ import { TeamRoundsModal } from './TeamRoundsModal';
 import { AdminGameSandboxModal } from './AdminGameSandboxModal';
 import { RoundGameMappingModal } from './RoundGameMappingModal';
 import { CheckpointCluesModal } from './CheckpointCluesModal';
+import { RoundDifficultiesModal } from './RoundDifficultiesModal';
+import { CooldownSettingsModal } from './CooldownSettingsModal';
 import { Button } from '@/components/atoms/Button';
 import { Field } from '@/components/atoms/Field';
 import { Panel } from '@/components/atoms/Panel';
 import { api, ApiError } from '@/services/api-client';
+import { useAuthStore } from '@/stores/auth.store';
 import type { ApiEnvelope } from '@/types/api';
 
 interface Member {
@@ -70,6 +75,7 @@ interface Credential extends Member {
 const blankMember = (): Member => ({ memberCode: '', displayName: '' });
 
 export function AdminPage() {
+  const adminUsername = useAuthStore((state) => state.identity?.username ?? '');
   const [setup, setSetup] = useState<SimpleSetup>({ event: null, teams: [], checkpoints: [] });
   const [checkpointCount, setCheckpointCount] = useState(8);
   const [members, setMembers] = useState<Member[]>([blankMember(), blankMember(), blankMember()]);
@@ -86,6 +92,9 @@ export function AdminPage() {
   const [roundMappingOpen, setRoundMappingOpen] = useState(false);
   const [cluesModalOpen, setCluesModalOpen] = useState(false);
   const [selectedCheckpointForClue, setSelectedCheckpointForClue] = useState<string | null>(null);
+  const [roundDifficultiesOpen, setRoundDifficultiesOpen] = useState(false);
+  const [cooldownOpen, setCooldownOpen] = useState(false);
+  const [selectedCheckpointForDifficulty, setSelectedCheckpointForDifficulty] = useState<string | null>(null);
 
   const allParticipants = useMemo(() => {
     return setup.teams.flatMap((team) =>
@@ -290,6 +299,14 @@ export function AdminPage() {
           >
             <Gamepad2 className="mr-1.5 text-cyan-300" size={16} /> Game Sandbox
           </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-10 text-xs bg-slate-800/80 hover:bg-slate-700"
+            onClick={() => setCooldownOpen(true)}
+          >
+            <TimerReset className="mr-1.5 text-amber-300" size={16} /> Retry Cooldown
+          </Button>
           {setup.event ? (
             <>
               <Button
@@ -324,7 +341,7 @@ export function AdminPage() {
             className="min-h-10 text-xs"
             onClick={() => setAdminPasswordOpen(true)}
           >
-            <Key className="mr-1.5 text-cyan-300" size={16} /> Admin Password
+            <Key className="mr-1.5 text-cyan-300" size={16} /> Admin Credentials
           </Button>
         </div>
       </div>
@@ -413,6 +430,17 @@ export function AdminPage() {
                   type="button"
                   variant="secondary"
                   className="text-xs"
+                  onClick={() => {
+                    setSelectedCheckpointForDifficulty(null);
+                    setRoundDifficultiesOpen(true);
+                  }}
+                >
+                  <Gauge className="mr-1.5 text-rose-400" size={15} /> Round Difficulties
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="text-xs"
                   onClick={() => setRoundMappingOpen(true)}
                 >
                   <Shuffle className="mr-1.5 text-cyan-300" size={15} /> Map Round Games
@@ -440,6 +468,10 @@ export function AdminPage() {
                   onEditClue={() => {
                     setSelectedCheckpointForClue(checkpoint.id);
                     setCluesModalOpen(true);
+                  }}
+                  onEditDifficulty={() => {
+                    setSelectedCheckpointForDifficulty(checkpoint.id);
+                    setRoundDifficultiesOpen(true);
                   }}
                 />
               ))}
@@ -734,7 +766,13 @@ export function AdminPage() {
 
       <ChangeAdminPasswordModal
         open={adminPasswordOpen}
+        currentUsername={adminUsername}
         onClose={() => setAdminPasswordOpen(false)}
+        onUpdated={(username) =>
+          useAuthStore.setState((state) => ({
+            identity: state.identity ? { ...state.identity, username } : null,
+          }))
+        }
       />
 
       <TeamRoundsModal
@@ -746,6 +784,8 @@ export function AdminPage() {
         isOpen={sandboxOpen}
         onClose={() => setSandboxOpen(false)}
       />
+
+      <CooldownSettingsModal open={cooldownOpen} onClose={() => setCooldownOpen(false)} />
 
       {setup.event && (
         <RoundGameMappingModal
@@ -767,6 +807,20 @@ export function AdminPage() {
           eventId={setup.event.id}
           checkpoints={setup.checkpoints}
           initialCheckpointId={selectedCheckpointForClue}
+          onSaved={() => void load()}
+        />
+      )}
+
+      {setup.event && (
+        <RoundDifficultiesModal
+          isOpen={roundDifficultiesOpen}
+          onClose={() => {
+            setRoundDifficultiesOpen(false);
+            setSelectedCheckpointForDifficulty(null);
+          }}
+          eventId={setup.event.id}
+          checkpoints={setup.checkpoints}
+          initialCheckpointId={selectedCheckpointForDifficulty}
           onSaved={() => void load()}
         />
       )}

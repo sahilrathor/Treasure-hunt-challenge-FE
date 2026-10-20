@@ -220,7 +220,7 @@ export function AssignmentPage() {
           >
             {busy ? 'Starting…' : 'Start official attempt'}
           </Button>
-          <Button
+          {/* <Button
             type="button"
             variant="secondary"
             className="w-full text-xs"
@@ -229,7 +229,7 @@ export function AssignmentPage() {
           >
             <RotateCw className={`mr-1.5 ${reloading ? 'animate-spin' : ''}`} size={14} />
             {reloading ? 'Reloading latest game…' : 'Reload latest game for this round'}
-          </Button>
+          </Button> */}
         </div>
       </Panel>
     );

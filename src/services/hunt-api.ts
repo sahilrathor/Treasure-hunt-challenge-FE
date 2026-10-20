@@ -100,6 +100,14 @@ export const huntApi = {
       await api.patch<ApiEnvelope<{ updated: boolean }>>('/admin/account/password', { password })
     ).data.data;
   },
+  async updateAdminCredentials(username: string, password: string) {
+    return (
+      await api.patch<ApiEnvelope<{ updated: boolean; username: string }>>(
+        '/admin/account/credentials',
+        { username, password },
+      )
+    ).data.data;
+  },
   async teamRounds(teamId: string) {
     return (
       await api.get<
@@ -139,16 +147,52 @@ export const huntApi = {
   async listGames() {
     return (await api.get<ApiEnvelope<AdminGame[]>>('/admin/games')).data.data;
   },
+  async updateGameLevel(
+    gameId: string,
+    level: {
+      difficulty: 'easy' | 'medium' | 'hard';
+      config: Record<string, unknown>;
+      maxAttempts: number;
+      cooldownSeconds: number;
+    },
+  ) {
+    return (
+      await api.post<ApiEnvelope<{ id: string }>>(`/admin/games/${gameId}/levels`, level)
+    ).data.data;
+  },
   async updateRoundGame(roundId: string, gameId: string | null) {
     return (
       await api.patch<ApiEnvelope<{ id: string }>>(`/admin/rounds/${roundId}`, { gameId })
+    ).data.data;
+  },
+  async updateRoundDifficulty(roundId: string, difficulty: 'easy' | 'medium' | 'hard') {
+    return (
+      await api.patch<ApiEnvelope<{ id: string; difficulty: string }>>(
+        `/admin/rounds/${roundId}`,
+        { difficulty },
+      )
+    ).data.data;
+  },
+  async updateRoundDifficulties(
+    eventId: string,
+    difficulties: Array<{ roundId: string; difficulty: 'easy' | 'medium' | 'hard' }>,
+  ) {
+    return (
+      await api.post<ApiEnvelope<{ updated: boolean }>>(
+        `/admin/events/${eventId}/round-difficulties`,
+        { difficulties },
+      )
     ).data.data;
   },
   async mapRoundGames(
     eventId: string,
     payload: {
       setAllRandom?: boolean;
-      mappings?: Array<{ roundId: string; gameId: string | null }>;
+      mappings?: Array<{
+        roundId: string;
+        gameId: string | null;
+        difficulty?: 'easy' | 'medium' | 'hard';
+      }>;
     },
   ) {
     return (
@@ -183,4 +227,3 @@ export const huntApi = {
     ).data.data;
   },
 };
-

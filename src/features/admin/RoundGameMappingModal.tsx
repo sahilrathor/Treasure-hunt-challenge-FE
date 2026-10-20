@@ -34,19 +34,22 @@ export function RoundGameMappingModal({
 }: Props) {
   const [games, setGames] = useState<AdminGame[]>([]);
   const [mappings, setMappings] = useState<Record<string, string | null>>({});
+  const [difficulties, setDifficulties] = useState<Record<string, 'easy' | 'medium' | 'hard'>>({});
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  // Initialize mappings from existing checkpoint data
+  // Initialize mappings and difficulties from existing checkpoint data
   useEffect(() => {
-    const initial: Record<string, string | null> = {};
+    const initialMappings: Record<string, string | null> = {};
+    const initialDiffs: Record<string, 'easy' | 'medium' | 'hard'> = {};
     for (const cp of checkpoints) {
-      if (cp.round_id) {
-        initial[cp.round_id] = cp.game_id ?? null;
-      }
+      const id = cp.round_id ?? cp.id;
+      initialMappings[id] = cp.game_id ?? null;
+      initialDiffs[id] = cp.difficulty ?? 'easy';
     }
-    setMappings(initial);
+    setMappings(initialMappings);
+    setDifficulties(initialDiffs);
   }, [checkpoints]);
 
   // Load available games
@@ -68,12 +71,19 @@ export function RoundGameMappingModal({
     setSuccess(false);
   }
 
+  function handleDifficultySelect(roundId: string, diff: 'easy' | 'medium' | 'hard') {
+    setDifficulties((prev) => ({
+      ...prev,
+      [roundId]: diff,
+    }));
+    setSuccess(false);
+  }
+
   function handleSetAllRandom() {
     const updated: Record<string, string | null> = {};
     for (const cp of checkpoints) {
-      if (cp.round_id) {
-        updated[cp.round_id] = null;
-      }
+      const id = cp.round_id ?? cp.id;
+      updated[id] = null;
     }
     setMappings(updated);
     setSuccess(false);
@@ -87,6 +97,7 @@ export function RoundGameMappingModal({
       const payload = Object.entries(mappings).map(([roundId, gameId]) => ({
         roundId,
         gameId,
+        difficulty: difficulties[roundId],
       }));
       await huntApi.mapRoundGames(eventId, { mappings: payload });
       setSuccess(true);
@@ -156,6 +167,7 @@ export function RoundGameMappingModal({
           {checkpoints.map((cp) => {
             const roundId = cp.round_id ?? cp.id;
             const currentSelected = mappings[roundId] ?? null;
+            const currentDiff = difficulties[roundId] ?? cp.difficulty ?? 'easy';
 
             return (
               <div
@@ -170,36 +182,42 @@ export function RoundGameMappingModal({
                     <span className="font-bold text-sm text-slate-200">
                       {cp.label}
                     </span>
-                    {cp.difficulty && (
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-black uppercase ${
-                          cp.difficulty === 'easy'
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : cp.difficulty === 'medium'
-                              ? 'bg-amber-400/20 text-amber-300'
-                              : 'bg-rose-500/20 text-rose-400'
-                        }`}
-                      >
-                        {cp.difficulty}
-                      </span>
-                    )}
                   </div>
                 </div>
 
-                {/* Game Dropdown */}
-                <select
-                  aria-label={`Select game for ${cp.label}`}
-                  value={currentSelected ?? ''}
-                  onChange={(e) => handleSelect(roundId, e.target.value || null)}
-                  className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-bold text-slate-100 focus:border-cyan-400 focus:outline-none sm:w-56"
-                >
-                  <option value="">🎲 Random (Unplayed by Team)</option>
-                  {games.map((game) => (
-                    <option key={game.id} value={game.id}>
-                      {game.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Difficulty Dropdown */}
+                  <select
+                    aria-label={`Select difficulty for ${cp.label}`}
+                    value={currentDiff}
+                    onChange={(e) =>
+                      handleDifficultySelect(
+                        roundId,
+                        e.target.value as 'easy' | 'medium' | 'hard',
+                      )
+                    }
+                    className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs font-bold text-slate-100 focus:border-cyan-400 focus:outline-none sm:w-28 uppercase"
+                  >
+                    <option value="easy">🟢 Easy</option>
+                    <option value="medium">🟡 Medium</option>
+                    <option value="hard">🔴 Hard</option>
+                  </select>
+
+                  {/* Game Dropdown */}
+                  <select
+                    aria-label={`Select game for ${cp.label}`}
+                    value={currentSelected ?? ''}
+                    onChange={(e) => handleSelect(roundId, e.target.value || null)}
+                    className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-bold text-slate-100 focus:border-cyan-400 focus:outline-none sm:w-56"
+                  >
+                    <option value="">🎲 Random (Unplayed by Team)</option>
+                    {games.map((game) => (
+                      <option key={game.id} value={game.id}>
+                        {game.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             );
           })}

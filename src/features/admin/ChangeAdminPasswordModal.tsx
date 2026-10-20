@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, Eye, EyeOff, ShieldCheck, X } from 'lucide-react';
 
 import { Button } from '@/components/atoms/Button';
@@ -8,20 +8,37 @@ import { ApiError } from '@/services/api-client';
 
 interface Props {
   open: boolean;
+  currentUsername: string;
   onClose(): void;
+  onUpdated(username: string): void;
 }
 
-export function ChangeAdminPasswordModal({ open, onClose }: Props) {
+export function ChangeAdminPasswordModal({ open, currentUsername, onClose, onUpdated }: Props) {
+  const [username, setUsername] = useState(currentUsername);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  useEffect(() => {
+    if (!open) return;
+    setUsername(currentUsername);
+    setPassword('');
+    setError('');
+    setSuccess(false);
+  }, [open, currentUsername]);
+
   if (!open) return null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!/^[A-Za-z0-9@._-]{3,64}$/.test(username.trim())) {
+      setError(
+        'Username must be 3–64 characters and use only letters, numbers, @, dot, underscore, or hyphen.',
+      );
+      return;
+    }
     if (password.length < 6) {
       setError('Password must be at least 6 characters.');
       return;
@@ -29,10 +46,11 @@ export function ChangeAdminPasswordModal({ open, onClose }: Props) {
     setBusy(true);
     setError('');
     try {
-      await huntApi.changeAdminPassword(password);
+      const result = await huntApi.updateAdminCredentials(username.trim(), password);
+      onUpdated(result.username);
       setSuccess(true);
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : 'Could not change admin password.');
+      setError(cause instanceof ApiError ? cause.message : 'Could not update admin credentials.');
     } finally {
       setBusy(false);
     }
@@ -61,9 +79,9 @@ export function ChangeAdminPasswordModal({ open, onClose }: Props) {
           </div>
           <div>
             <h2 id="admin-password-title" className="text-xl font-black text-slate-100">
-              Admin Password
+              Admin Credentials
             </h2>
-            <p className="text-xs text-slate-400">Update your administrator account password.</p>
+            <p className="text-xs text-slate-400">Set your administrator username and password.</p>
           </div>
         </div>
 
@@ -76,9 +94,9 @@ export function ChangeAdminPasswordModal({ open, onClose }: Props) {
         {success ? (
           <div className="mt-5 rounded-2xl border border-emerald-500/40 bg-emerald-950/20 p-4 text-center">
             <Check className="mx-auto text-emerald-400" size={32} />
-            <p className="mt-2 font-bold text-slate-100">Admin password changed!</p>
+            <p className="mt-2 font-bold text-slate-100">Admin credentials updated!</p>
             <p className="mt-1 text-xs text-slate-400">
-              Your new password is now active for future logins.
+              Use <span className="font-mono text-cyan-300">{username.trim()}</span> for future logins.
             </p>
             <Button type="button" className="mt-4 w-full" onClick={onClose}>
               Done
@@ -86,6 +104,17 @@ export function ChangeAdminPasswordModal({ open, onClose }: Props) {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
+            <Field
+              label="Admin username"
+              name="username"
+              autoComplete="username"
+              placeholder="Choose a username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={busy}
+              required
+              hint="Letters, numbers, @, dot, underscore, and hyphen are allowed."
+            />
             <div className="relative">
               <Field
                 label="New admin password"
@@ -95,7 +124,7 @@ export function ChangeAdminPasswordModal({ open, onClose }: Props) {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={busy}
                 required
-                hint="Make sure to remember this password."
+                hint="Both username and password will be updated together."
               />
               <button
                 type="button"
@@ -112,8 +141,8 @@ export function ChangeAdminPasswordModal({ open, onClose }: Props) {
               <Button type="button" variant="secondary" disabled={busy} onClick={onClose}>
                 Cancel
               </Button>
-              <Button disabled={busy || password.length < 6}>
-                {busy ? 'Updating…' : 'Update Password'}
+              <Button disabled={busy || username.trim().length < 3 || password.length < 6}>
+                {busy ? 'Updating…' : 'Update Credentials'}
               </Button>
             </div>
           </form>

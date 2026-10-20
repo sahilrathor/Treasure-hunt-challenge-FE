@@ -5,6 +5,7 @@ export interface Identity {
   userId: string;
   role: Role;
   displayName: string;
+  username: string | null;
   eventId: string | null;
   teamId: string | null;
   memberCode: string | null;

@@ -26,6 +26,7 @@ export function CheckpointQrCard({
   disabled,
   onGenerate,
   onEditClue,
+  onEditDifficulty,
 }: {
   checkpoint: CheckpointSummary;
   generated?: GeneratedCheckpointQr;
@@ -33,6 +34,7 @@ export function CheckpointQrCard({
   disabled: boolean;
   onGenerate(): void;
   onEditClue?(): void;
+  onEditDifficulty?(): void;
 }) {
   return (
     <article className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 flex flex-col justify-between">
@@ -43,11 +45,39 @@ export function CheckpointQrCard({
               Checkpoint {checkpoint.sequence}
             </p>
             <h3 className="font-black text-slate-100">{checkpoint.label}</h3>
-            <div className="mt-1 text-xs text-slate-400">
-              <span>Game: </span>
-              <span className="font-bold text-amber-300">
-                {checkpoint.game_name ? checkpoint.game_name : '🎲 Random (Unplayed)'}
-              </span>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <div>
+                <span>Game: </span>
+                <span className="font-bold text-amber-300">
+                  {checkpoint.game_name ? checkpoint.game_name : '🎲 Random (Unplayed)'}
+                </span>
+              </div>
+              <span className="text-slate-600">•</span>
+              <div className="flex items-center gap-1.5">
+                <span>Difficulty: </span>
+                <span
+                  className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                    checkpoint.difficulty === 'easy'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : checkpoint.difficulty === 'medium'
+                        ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
+                        : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                  }`}
+                >
+                  {checkpoint.difficulty ?? 'easy'}
+                </span>
+                {onEditDifficulty && (
+                  <button
+                    type="button"
+                    onClick={onEditDifficulty}
+                    className="text-slate-400 hover:text-cyan-300 transition p-0.5"
+                    title={`Change difficulty for ${checkpoint.label}`}
+                    aria-label={`Change difficulty for ${checkpoint.label}`}
+                  >
+                    <Edit3 size={11} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
           <QrCode className="text-slate-500" />

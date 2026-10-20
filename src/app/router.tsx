@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 import { App } from '@/app/App';
 import { SessionProvider } from '@/app/providers';
@@ -24,6 +24,7 @@ export const router = createBrowserRouter([
             element: <ParticipantGuard />,
             children: [
               { path: '/', element: <DashboardPage /> },
+              { path: '/route', element: <DashboardPage /> },
               { path: '/scan', element: <ScanPage /> },
               { path: '/assignments/:id', element: <AssignmentPage /> },
               { path: '/clue', element: <CluePage /> },
@@ -39,12 +40,7 @@ export const router = createBrowserRouter([
           },
           {
             path: '*',
-            element: (
-              <div className="py-24 text-center">
-                <p className="text-cyan-300">404</p>
-                <h1 className="mt-2 text-3xl font-black">Checkpoint not found</h1>
-              </div>
-            ),
+            element: <Navigate to="/route" replace />,
           },
         ],
       },

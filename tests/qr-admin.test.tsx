@@ -62,3 +62,24 @@ it('displays the assigned clue and fires onEditClue when clicked', () => {
   expect(handleEditClue).toHaveBeenCalledOnce();
 });
 
+it('displays the difficulty badge and fires onEditDifficulty when clicked', () => {
+  const handleEditDifficulty = vi.fn();
+  render(
+    <CheckpointQrCard
+      checkpoint={{
+        ...checkpoint,
+        difficulty: 'medium',
+      }}
+      busy={false}
+      disabled={false}
+      onGenerate={() => undefined}
+      onEditDifficulty={handleEditDifficulty}
+    />,
+  );
+
+  expect(screen.getByText('medium')).toBeInTheDocument();
+  const editDiffBtn = screen.getByRole('button', { name: /change difficulty for library/i });
+  editDiffBtn.click();
+  expect(handleEditDifficulty).toHaveBeenCalledOnce();
+});
+

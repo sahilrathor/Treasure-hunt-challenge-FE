@@ -54,7 +54,7 @@ export function LoginPage() {
         </div>
         <form className="mt-6 grid gap-4" onSubmit={(event) => void submit(event)}>
           <Field
-            label={adminMode ? 'Email' : 'Member ID'}
+            label={adminMode ? 'Username' : 'Member ID'}
             name="identifier"
             autoComplete="username"
             required
