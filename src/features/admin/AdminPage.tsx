@@ -9,6 +9,7 @@ import {
   Key,
   Plus,
   QrCode,
+  RotateCcw,
   Search,
   Shuffle,
   Square,
@@ -303,6 +304,52 @@ export function AdminPage() {
     }
   }
 
+  async function restartHunt() {
+    if (!setup.event) return;
+    if (
+      !window.confirm(
+        'Restart this hunt with the same teams and checkpoints? All attempts, rankings, assignments, and team progress will be permanently cleared.',
+      )
+    )
+      return;
+    setBusy('restart');
+    setError('');
+    setNotice('');
+    try {
+      await api.post(`/admin/events/${setup.event.id}/control`, { action: 'RESTART' });
+      setNotice('The hunt was reset to draft. Review the setup, then start it again.');
+      await load();
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'Could not restart the hunt.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function startNewHunt() {
+    if (!setup.event) return;
+    if (
+      !window.confirm(
+        'Create a new blank hunt? The finished hunt and its final results will be preserved.',
+      )
+    )
+      return;
+    setBusy('new-hunt');
+    setError('');
+    setNotice('');
+    try {
+      await api.post(`/admin/events/${setup.event.id}/new-hunt`);
+      setCheckpointQrs({});
+      setCredentials([]);
+      setNotice('A new draft hunt is ready. Configure its checkpoints and teams.');
+      await load();
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'Could not create a new hunt.');
+    } finally {
+      setBusy('');
+    }
+  }
+
   function updateMember(index: number, field: keyof Member, value: string) {
     setMembers((current) =>
       current.map((member, memberIndex) =>
@@ -342,6 +389,29 @@ export function AdminPage() {
               <Square className="mr-1.5" size={14} />
               {busy === 'finish' ? 'Ending…' : 'End Hunt'}
             </Button>
+          ) : null}
+          {setup.event?.status === 'FINISHED' ? (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-9 px-3 text-xs border-amber-500/40 text-amber-300 hover:border-amber-400"
+                disabled={busy === 'restart' || busy === 'new-hunt'}
+                onClick={() => void restartHunt()}
+              >
+                <RotateCcw className="mr-1.5" size={14} />
+                {busy === 'restart' ? 'Restarting…' : 'Restart Hunt'}
+              </Button>
+              <Button
+                type="button"
+                className="min-h-9 px-3 text-xs"
+                disabled={busy === 'restart' || busy === 'new-hunt'}
+                onClick={() => void startNewHunt()}
+              >
+                <Plus className="mr-1.5" size={14} />
+                {busy === 'new-hunt' ? 'Creating…' : 'Start New Hunt'}
+              </Button>
+            </>
           ) : null}
           <Button
             type="button"

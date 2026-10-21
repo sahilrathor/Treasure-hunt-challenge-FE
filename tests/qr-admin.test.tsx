@@ -52,12 +52,12 @@ it('displays the assigned clue and fires onEditClue when clicked', () => {
     />,
   );
 
-  expect(screen.getByText(/Round 1 Clue/i)).toBeInTheDocument();
+  expect(screen.getByText(/Round 1 Default Clue/i)).toBeInTheDocument();
   expect(
     screen.getByText(/"Behind the third shelf in the quiet reading zone\."/i),
   ).toBeInTheDocument();
 
-  const editBtn = screen.getByRole('button', { name: /Edit Clue/i });
+  const editBtn = screen.getByRole('button', { name: /Team Clues/i });
   editBtn.click();
   expect(handleEditClue).toHaveBeenCalledOnce();
 });
@@ -82,4 +82,3 @@ it('displays the difficulty badge and fires onEditDifficulty when clicked', () =
   editDiffBtn.click();
   expect(handleEditDifficulty).toHaveBeenCalledOnce();
 });
-
