@@ -34,6 +34,10 @@ describe('CheckpointCluesModal', () => {
       clue: 'Seek the oldest volumes on level two.',
     },
   ];
+  const mockTeams = [
+    { id: 'team-1', code: 'TEAM-01', name: 'Alpha' },
+    { id: 'team-2', code: 'TEAM-02', name: 'Beta' },
+  ];
 
   it('renders checkpoint clues and saves updated clues via huntApi', async () => {
     const user = userEvent.setup();
@@ -47,12 +51,13 @@ describe('CheckpointCluesModal', () => {
         isOpen={true}
         onClose={handleClose}
         eventId="event-123"
+        teams={mockTeams}
         checkpoints={mockCheckpoints}
         onSaved={handleSaved}
       />,
     );
 
-    expect(screen.getByText('Checkpoint Clues')).toBeInTheDocument();
+    expect(screen.getByText('Team Clues')).toBeInTheDocument();
     expect(screen.getByText('Main Gate')).toBeInTheDocument();
     expect(screen.getByText('Library')).toBeInTheDocument();
 
@@ -68,15 +73,18 @@ describe('CheckpointCluesModal', () => {
     });
     expect(textareas[1]).toHaveValue('Near the reading room skylight.');
 
-    // Save All Clues
-    const saveButton = screen.getByRole('button', { name: /Save All Clues/i });
+    const saveButton = screen.getByRole('button', { name: /Save Team Clues/i });
     await user.click(saveButton);
 
     await waitFor(() => {
-      expect(huntApi.updateCheckpointClues).toHaveBeenCalledWith('event-123', [
-        { roundId: 'round-1', clue: 'Start at the entrance arches.' },
-        { roundId: 'round-2', clue: 'Near the reading room skylight.' },
-      ]);
+      expect(huntApi.updateCheckpointClues).toHaveBeenCalledWith(
+        'event-123',
+        'team-1',
+        [
+          { roundId: 'round-1', clue: 'Start at the entrance arches.' },
+          { roundId: 'round-2', clue: 'Near the reading room skylight.' },
+        ],
+      );
       expect(handleSaved).toHaveBeenCalledOnce();
     });
   });
@@ -88,6 +96,7 @@ describe('CheckpointCluesModal', () => {
         isOpen={true}
         onClose={() => undefined}
         eventId="event-123"
+        teams={mockTeams}
         checkpoints={mockCheckpoints}
         onSaved={() => undefined}
       />,
@@ -97,6 +106,30 @@ describe('CheckpointCluesModal', () => {
     await user.click(resetButtons[0]!);
 
     const textareas = screen.getAllByRole('textbox');
-    expect(textareas[0]).toHaveValue('Proceed to Checkpoint 1.');
+    expect(textareas[0]).toHaveValue('Start at the entrance arches.');
+  });
+
+  it('shows a different saved clue when another team is selected', async () => {
+    const user = userEvent.setup();
+    const checkpoints = mockCheckpoints.map((checkpoint, index) => ({
+      ...checkpoint,
+      team_clues:
+        index === 0 ? { 'team-2': 'Beta enters beside the auditorium.' } : undefined,
+    }));
+
+    render(
+      <CheckpointCluesModal
+        isOpen={true}
+        onClose={() => undefined}
+        eventId="event-123"
+        teams={mockTeams}
+        checkpoints={checkpoints}
+        onSaved={() => undefined}
+      />,
+    );
+
+    expect(screen.getAllByRole('textbox')[0]).toHaveValue('Start at the entrance arches.');
+    await user.selectOptions(screen.getByRole('combobox'), 'team-2');
+    expect(screen.getAllByRole('textbox')[0]).toHaveValue('Beta enters beside the auditorium.');
   });
 });

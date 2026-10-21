@@ -370,7 +370,7 @@ export function AdminPage() {
                   setCluesModalOpen(true);
                 }}
               >
-                <Compass className="mr-1.5 text-amber-300" size={16} /> Checkpoint Clues
+                <Compass className="mr-1.5 text-amber-300" size={16} /> Team Clues
               </Button>
               <Button
                 type="button"
@@ -482,7 +482,7 @@ export function AdminPage() {
                     setCluesModalOpen(true);
                   }}
                 >
-                  <Compass className="mr-1.5 text-amber-300" size={15} /> Checkpoint Clues
+                  <Compass className="mr-1.5 text-amber-300" size={15} /> Team Clues
                 </Button>
                 <Button
                   type="button"
@@ -863,6 +863,7 @@ export function AdminPage() {
             setSelectedCheckpointForClue(null);
           }}
           eventId={setup.event.id}
+          teams={setup.teams}
           checkpoints={setup.checkpoints}
           initialCheckpointId={selectedCheckpointForClue}
           onSaved={() => void load()}

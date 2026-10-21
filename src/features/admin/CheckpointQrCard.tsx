@@ -9,6 +9,7 @@ export interface CheckpointSummary {
   round_id?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
   clue?: string;
+  team_clues?: Record<string, string>;
   game_id?: string | null;
   game_name?: string | null;
   game_code?: string | null;
@@ -87,7 +88,7 @@ export function CheckpointQrCard({
         <div className="mt-3 rounded-xl border border-slate-800/80 bg-slate-900/60 p-3 text-xs">
           <div className="flex items-center justify-between text-slate-400 font-bold mb-1">
             <span className="flex items-center gap-1.5 text-amber-300">
-              <Compass size={14} /> Round {checkpoint.sequence} Clue
+              <Compass size={14} /> Round {checkpoint.sequence} Default Clue
             </span>
             {onEditClue && (
               <button
@@ -95,7 +96,7 @@ export function CheckpointQrCard({
                 onClick={onEditClue}
                 className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1 font-semibold text-[11px] transition"
               >
-                <Edit3 size={12} /> Edit Clue
+                <Edit3 size={12} /> Team Clues
               </button>
             )}
           </div>

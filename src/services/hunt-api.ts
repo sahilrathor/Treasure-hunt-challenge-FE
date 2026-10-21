@@ -211,12 +211,13 @@ export const huntApi = {
   },
   async updateCheckpointClues(
     eventId: string,
+    teamId: string,
     clues: Array<{ roundId: string; clue: string }>,
   ) {
     return (
       await api.post<ApiEnvelope<{ updated: boolean }>>(
         `/admin/events/${eventId}/clues`,
-        { clues },
+        { teamId, clues },
       )
     ).data.data;
   },

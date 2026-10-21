@@ -10,6 +10,7 @@ interface CheckpointCluesModalProps {
   isOpen: boolean;
   onClose(): void;
   checkpoints: CheckpointSummary[];
+  teams: Array<{ id: string; code: string; name: string }>;
   eventId?: string;
   onSaved(): void;
   initialCheckpointId?: string | null;
@@ -19,11 +20,13 @@ export function CheckpointCluesModal({
   isOpen,
   onClose,
   checkpoints,
+  teams,
   eventId,
   onSaved,
   initialCheckpointId,
 }: CheckpointCluesModalProps) {
   const [clues, setClues] = useState<Record<string, string>>({});
+  const [selectedTeamId, setSelectedTeamId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -32,14 +35,20 @@ export function CheckpointCluesModal({
   useEffect(() => {
     if (!isOpen) return;
     const initial: Record<string, string> = {};
-    for (const cp of checkpoints) {
-      const key = cp.round_id || cp.id;
-      initial[key] = cp.clue || `Proceed to Checkpoint ${cp.sequence}.`;
+    for (const team of teams) {
+      for (const cp of checkpoints) {
+        const roundId = cp.round_id || cp.id;
+        initial[`${team.id}:${roundId}`] =
+          cp.team_clues?.[team.id] || cp.clue || `Proceed to Checkpoint ${cp.sequence}.`;
+      }
     }
     setClues(initial);
+    setSelectedTeamId((current) =>
+      teams.some((team) => team.id === current) ? current : (teams[0]?.id ?? ''),
+    );
     setError('');
     setSuccess('');
-  }, [isOpen, checkpoints]);
+  }, [isOpen, checkpoints, teams]);
 
   if (!isOpen) return null;
 
@@ -51,13 +60,20 @@ export function CheckpointCluesModal({
   }
 
   function resetToDefault(cp: CheckpointSummary) {
-    const key = cp.round_id || cp.id;
-    updateClue(key, `Proceed to Checkpoint ${cp.sequence}.`);
+    const roundId = cp.round_id || cp.id;
+    updateClue(
+      `${selectedTeamId}:${roundId}`,
+      cp.clue || `Proceed to Checkpoint ${cp.sequence}.`,
+    );
   }
 
   async function handleSaveAll() {
     if (!eventId) {
       setError('Event ID is missing.');
+      return;
+    }
+    if (!selectedTeamId) {
+      setError('Select a team before saving clues.');
       return;
     }
 
@@ -71,16 +87,17 @@ export function CheckpointCluesModal({
         .filter((cp) => Boolean(cp.round_id))
         .map((cp) => ({
           roundId: cp.round_id!,
-          clue: clues[cp.round_id!]?.trim() || `Proceed to Checkpoint ${cp.sequence}.`,
+          clue:
+            clues[`${selectedTeamId}:${cp.round_id!}`]?.trim() ||
+            cp.clue ||
+            `Proceed to Checkpoint ${cp.sequence}.`,
         }));
 
-      await huntApi.updateCheckpointClues(eventId, payload);
+      await huntApi.updateCheckpointClues(eventId, selectedTeamId, payload);
 
-      setSuccess('All checkpoint clues saved successfully!');
+      const team = teams.find((item) => item.id === selectedTeamId);
+      setSuccess(`Clues saved for ${team?.name ?? 'the selected team'}!`);
       onSaved();
-      setTimeout(() => {
-        onClose();
-      }, 700);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not save checkpoint clues.');
     } finally {
@@ -99,13 +116,13 @@ export function CheckpointCluesModal({
             </div>
             <div>
               <h2 className="text-xl font-black text-slate-100 flex items-center gap-2">
-                Checkpoint Clues
+                Team Clues
                 <span className="rounded-full bg-slate-800 px-2.5 py-0.5 text-xs font-semibold text-cyan-300">
                   {checkpoints.length} Rounds
                 </span>
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Riddles and clues guiding teams to find and scan each checkpoint QR.
+                Give each team its own route hints for every checkpoint.
               </p>
             </div>
           </div>
@@ -134,8 +151,36 @@ export function CheckpointCluesModal({
 
         {/* Body list of checkpoints */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+          <label className="block rounded-2xl border border-cyan-400/20 bg-cyan-950/20 p-4">
+            <span className="mb-2 block text-xs font-black uppercase tracking-wider text-cyan-300">
+              Editing clues for
+            </span>
+            <select
+              value={selectedTeamId}
+              onChange={(event) => {
+                setSelectedTeamId(event.target.value);
+                setError('');
+                setSuccess('');
+              }}
+              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm font-bold text-slate-100 focus:border-cyan-400 focus:outline-none"
+            >
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.code} — {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {!teams.length && (
+            <p className="rounded-xl border border-amber-400/30 bg-amber-950/30 p-3 text-sm text-amber-200">
+              Add a team before creating team-specific clues.
+            </p>
+          )}
+
           {checkpoints.map((cp) => {
-            const key = cp.round_id || cp.id;
+            const roundId = cp.round_id || cp.id;
+            const key = `${selectedTeamId}:${roundId}`;
             const currentClue = clues[key] ?? cp.clue ?? '';
             const isHighlighted = initialCheckpointId === cp.id || initialCheckpointId === cp.round_id;
 
@@ -183,7 +228,7 @@ export function CheckpointCluesModal({
                   />
                   <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
                     <span className="flex items-center gap-1">
-                      <HelpCircle size={12} /> Shown on team's device for Round {cp.sequence}
+                      <HelpCircle size={12} /> Shown only to this team in Round {cp.sequence}
                     </span>
                     <span className="font-mono">{currentClue.length} / 1000</span>
                   </div>
@@ -196,15 +241,20 @@ export function CheckpointCluesModal({
         {/* Footer */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 p-4 sm:p-6 bg-slate-950/60">
           <p className="text-xs text-slate-500">
-            Teams only see the clue for their current round.
+            Save each team separately. Unsaved team changes remain while this window is open.
           </p>
           <div className="flex items-center gap-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
               Cancel
             </Button>
-            <Button type="button" onClick={handleSaveAll} disabled={busy} className="min-w-32">
+            <Button
+              type="button"
+              onClick={handleSaveAll}
+              disabled={busy || !selectedTeamId}
+              className="min-w-32"
+            >
               <Save className="mr-1.5" size={16} />
-              {busy ? 'Saving…' : 'Save All Clues'}
+              {busy ? 'Saving…' : 'Save Team Clues'}
             </Button>
           </div>
         </div>
