@@ -32,7 +32,7 @@ describe('admin credentials modal', () => {
     fireEvent.change(screen.getByRole('textbox'), {
       target: { value: 'quest-admin' },
     });
-    fireEvent.change(screen.getByPlaceholderText('At least 6 characters'), {
+    fireEvent.change(screen.getByPlaceholderText('At least 8 characters'), {
       target: { value: 'NewSecret123!' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Update Credentials' }));

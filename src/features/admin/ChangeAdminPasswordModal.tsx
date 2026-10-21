@@ -39,8 +39,8 @@ export function ChangeAdminPasswordModal({ open, currentUsername, onClose, onUpd
       );
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
       return;
     }
     setBusy(true);
@@ -119,7 +119,7 @@ export function ChangeAdminPasswordModal({ open, currentUsername, onClose, onUpd
               <Field
                 label="New admin password"
                 type={showPassword ? 'text' : 'password'}
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={busy}
@@ -141,7 +141,7 @@ export function ChangeAdminPasswordModal({ open, currentUsername, onClose, onUpd
               <Button type="button" variant="secondary" disabled={busy} onClick={onClose}>
                 Cancel
               </Button>
-              <Button disabled={busy || username.trim().length < 3 || password.length < 6}>
+              <Button disabled={busy || username.trim().length < 3 || password.length < 8}>
                 {busy ? 'Updating…' : 'Update Credentials'}
               </Button>
             </div>
