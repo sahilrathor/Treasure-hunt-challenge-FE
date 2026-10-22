@@ -85,6 +85,7 @@ export function AdminPage() {
   const [members, setMembers] = useState<Member[]>([blankMember(), blankMember(), blankMember()]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [checkpointQrs, setCheckpointQrs] = useState<Record<string, GeneratedCheckpointQr>>({});
+  const [selectedQrTeamId, setSelectedQrTeamId] = useState('');
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -121,6 +122,9 @@ export function AdminPage() {
         p.teamCode.toLowerCase().includes(q),
     );
   }, [allParticipants, participantSearch]);
+
+  const selectedQrTeam =
+    setup.teams.find((team) => team.id === selectedQrTeamId) ?? setup.teams[0] ?? null;
 
   async function load() {
     try {
@@ -586,37 +590,86 @@ export function AdminPage() {
                 </Button>
               </div>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {setup.checkpoints.flatMap((checkpoint) =>
-                setup.teams.map((team) => {
-                  const key = qrKey(checkpoint.id, team.id);
-                  return (
-                    <CheckpointQrCard
-                      key={key}
-                      checkpoint={checkpoint}
-                      team={team}
-                      generated={checkpointQrs[key]}
-                      busy={busy === `qr-${key}`}
-                      disabled={!qrEditable || busy === 'all-qrs'}
-                      onGenerate={() => void generateQr(checkpoint, team)}
-                      onEditClue={() => {
-                        setSelectedCheckpointForClue(checkpoint.id);
-                        setCluesModalOpen(true);
-                      }}
-                      onEditDifficulty={() => {
-                        setSelectedCheckpointForDifficulty(checkpoint.id);
-                        setRoundDifficultiesOpen(true);
-                      }}
-                    />
-                  );
-                }),
-              )}
-            </div>
-            {!setup.teams.length ? (
+            {selectedQrTeam ? (
+              <div className="mt-5">
+                <div
+                  role="tablist"
+                  aria-label="Team checkpoint QR codes"
+                  className="flex gap-2 overflow-x-auto border-b border-slate-800 pb-3"
+                >
+                  {setup.teams.map((team) => {
+                    const selected = team.id === selectedQrTeam.id;
+                    return (
+                      <button
+                        key={team.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={selected}
+                        onClick={() => setSelectedQrTeamId(team.id)}
+                        className={`shrink-0 rounded-xl px-4 py-2 text-left transition ${
+                          selected
+                            ? 'bg-cyan-300 text-slate-950'
+                            : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <span className="block text-xs font-black uppercase tracking-wider">
+                          {team.code}
+                        </span>
+                        <span className="block max-w-40 truncate text-xs opacity-75">
+                          {team.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div
+                  role="tabpanel"
+                  aria-label={`${selectedQrTeam.name} checkpoint QR codes`}
+                  className="mt-4"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-slate-100">{selectedQrTeam.name}</p>
+                      <p className="text-xs text-slate-500">
+                        Generate and download only this team&apos;s checkpoint QRs below.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-cyan-300">
+                      {setup.checkpoints.length} checkpoints
+                    </span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {setup.checkpoints.map((checkpoint) => {
+                      const key = qrKey(checkpoint.id, selectedQrTeam.id);
+                      return (
+                        <CheckpointQrCard
+                          key={key}
+                          checkpoint={checkpoint}
+                          team={selectedQrTeam}
+                          generated={checkpointQrs[key]}
+                          busy={busy === `qr-${key}`}
+                          disabled={!qrEditable || busy === 'all-qrs'}
+                          onGenerate={() => void generateQr(checkpoint, selectedQrTeam)}
+                          onEditClue={() => {
+                            setSelectedCheckpointForClue(checkpoint.id);
+                            setCluesModalOpen(true);
+                          }}
+                          onEditDifficulty={() => {
+                            setSelectedCheckpointForDifficulty(checkpoint.id);
+                            setRoundDifficultiesOpen(true);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
               <p className="mt-4 text-sm text-slate-400">
                 Add a team to generate its checkpoint QR codes.
               </p>
-            ) : null}
+            )}
             <p className="mt-3 text-xs text-amber-200">
               Replacing a QR immediately invalidates the previous one, including while the hunt is
               running.
