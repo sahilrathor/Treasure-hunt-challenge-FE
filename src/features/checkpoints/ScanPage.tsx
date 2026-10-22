@@ -5,16 +5,32 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Panel } from '@/components/atoms/Panel';
 import { ApiError } from '@/services/api-client';
 import { huntApi } from '@/services/hunt-api';
+import { useAuthStore } from '@/stores/auth.store';
 
 export function ScanPage() {
   const [params] = useSearchParams();
   const token = params.get('token');
+  const verified = params.get('verified') === '1';
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const identity = useAuthStore((state) => state.identity);
+  const logout = useAuthStore((state) => state.logout);
 
   useEffect(() => {
     if (!token) return;
     let active = true;
+    if (!verified) {
+      void logout().catch(() => undefined).then(() => {
+        if (active) navigate(`/login?scanToken=${encodeURIComponent(token)}`, { replace: true });
+      });
+      return () => {
+        active = false;
+      };
+    }
+    if (identity?.role !== 'PARTICIPANT') {
+      navigate(`/login?scanToken=${encodeURIComponent(token)}`, { replace: true });
+      return;
+    }
     void huntApi
       .scan(token)
       .then((assignment) => {
@@ -26,7 +42,7 @@ export function ScanPage() {
     return () => {
       active = false;
     };
-  }, [navigate, token]);
+  }, [identity, logout, navigate, token, verified]);
 
   return (
     <Panel className="mx-auto max-w-lg text-center">

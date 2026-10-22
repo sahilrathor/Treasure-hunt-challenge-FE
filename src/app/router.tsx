@@ -20,12 +20,12 @@ export const router = createBrowserRouter([
       {
         element: <App />,
         children: [
+          { path: '/scan', element: <ScanPage /> },
           {
             element: <ParticipantGuard />,
             children: [
               { path: '/', element: <DashboardPage /> },
               { path: '/route', element: <DashboardPage /> },
-              { path: '/scan', element: <ScanPage /> },
               { path: '/assignments/:id', element: <AssignmentPage /> },
               { path: '/clue', element: <CluePage /> },
             ],

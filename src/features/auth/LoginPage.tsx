@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { Button } from '@/components/atoms/Button';
 import { Field } from '@/components/atoms/Field';
@@ -14,7 +14,10 @@ export function LoginPage() {
   const [adminMode, setAdminMode] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  if (identity) return <Navigate to={identity.role === 'PARTICIPANT' ? '/' : '/admin'} replace />;
+  const [params] = useSearchParams();
+  const scanToken = params.get('scanToken');
+  if (identity && !scanToken)
+    return <Navigate to={identity.role === 'PARTICIPANT' ? '/' : '/admin'} replace />;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,8 +27,15 @@ export function LoginPage() {
       const current = await login({
         identifier: String(form.get('identifier')),
         password: String(form.get('password')),
+        ...(scanToken ? { qrToken: scanToken } : {}),
       });
-      navigate(current.role === 'PARTICIPANT' ? '/' : '/admin');
+      navigate(
+        current.role === 'PARTICIPANT' && scanToken
+          ? `/scan?token=${encodeURIComponent(scanToken)}&verified=1`
+          : current.role === 'PARTICIPANT'
+            ? '/'
+            : '/admin',
+      );
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Login failed.');
     }
@@ -35,10 +45,14 @@ export function LoginPage() {
     <div className="mx-auto grid min-h-[75dvh] max-w-md place-items-center">
       <Panel className="w-full p-7">
         <p className="text-xs font-black uppercase tracking-[.28em] text-cyan-300">
-          Enter the hunt
+          {scanToken ? 'Checkpoint verification' : 'Enter the hunt'}
         </p>
-        <h1 className="mt-3 text-4xl font-black">Welcome, player.</h1>
-        <div className="mt-6 grid grid-cols-2 rounded-xl bg-slate-950 p-1 text-sm font-bold">
+        <h1 className="mt-3 text-4xl font-black">
+          {scanToken ? 'Log in to unlock this checkpoint.' : 'Welcome, player.'}
+        </h1>
+        <div
+          className={`mt-6 grid grid-cols-2 rounded-xl bg-slate-950 p-1 text-sm font-bold ${scanToken ? 'hidden' : ''}`}
+        >
           <button
             className={`rounded-lg p-2 ${!adminMode ? 'bg-cyan-300 text-slate-950' : 'text-slate-400'}`}
             onClick={() => setAdminMode(false)}

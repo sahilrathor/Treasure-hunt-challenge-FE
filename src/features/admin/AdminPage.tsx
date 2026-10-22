@@ -58,6 +58,8 @@ interface Team {
   participants: Array<Member & { id: string }>;
 }
 
+const qrKey = (checkpointId: string, teamId: string) => `${checkpointId}:${teamId}`;
+
 interface SimpleSetup {
   event: {
     id: string;
@@ -155,31 +157,17 @@ export function AdminPage() {
         ? await api.patch<
             ApiEnvelope<{
               checkpointCount: number;
-              checkpoints: Array<CheckpointSummary & { scanUrl: string }>;
+              checkpoints: CheckpointSummary[];
             }>
           >(`/admin/events/${setup.event.id}/checkpoint-count`, { checkpointCount })
         : await api.post<
             ApiEnvelope<{
-              checkpoints: Array<CheckpointSummary & { scanUrl: string }>;
+              checkpoints: CheckpointSummary[];
             }>
           >('/admin/simple/setup', { checkpointCount });
-      const generated = await Promise.all(
-        response.data.data.checkpoints.map(async (checkpoint) => ({
-          ...checkpoint,
-          imageUrl: await QRCode.toDataURL(checkpoint.scanUrl, {
-            width: 420,
-            margin: 2,
-            errorCorrectionLevel: 'M',
-          }),
-        })),
-      );
-      setCheckpointQrs((current) => ({
-        ...current,
-        ...Object.fromEntries(generated.map((checkpoint) => [checkpoint.id, checkpoint])),
-      }));
       setNotice(
-        generated.length
-          ? `${checkpointCount} checkpoints are ready. Download the new QR codes.`
+        response.data.data.checkpoints.length
+          ? `${checkpointCount} checkpoints are ready. Add teams, then generate their QR codes.`
           : `Checkpoint count changed to ${checkpointCount}.`,
       );
       await load();
@@ -190,13 +178,14 @@ export function AdminPage() {
     }
   }
 
-  async function generateQr(checkpoint: CheckpointSummary) {
-    setBusy(`qr-${checkpoint.id}`);
+  async function generateQr(checkpoint: CheckpointSummary, team: Team) {
+    const key = qrKey(checkpoint.id, team.id);
+    setBusy(`qr-${key}`);
     setError('');
     try {
       const response = await api.patch<ApiEnvelope<{ scanUrl: string }>>(
         `/admin/checkpoints/${checkpoint.id}`,
-        { rotateToken: true },
+        { rotateToken: true, teamId: team.id },
       );
       const imageUrl = await QRCode.toDataURL(response.data.data.scanUrl, {
         width: 420,
@@ -205,9 +194,15 @@ export function AdminPage() {
       });
       setCheckpointQrs((current) => ({
         ...current,
-        [checkpoint.id]: { ...checkpoint, scanUrl: response.data.data.scanUrl, imageUrl },
+        [key]: {
+          ...checkpoint,
+          teamId: team.id,
+          teamCode: team.code,
+          scanUrl: response.data.data.scanUrl,
+          imageUrl,
+        },
       }));
-      setNotice(`${checkpoint.label} QR is ready. Download it before starting the hunt.`);
+      setNotice(`${team.name}'s ${checkpoint.label} QR is ready.`);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not generate the QR code.');
     } finally {
@@ -220,22 +215,29 @@ export function AdminPage() {
     setError('');
     try {
       for (const checkpoint of setup.checkpoints) {
-        const response = await api.patch<ApiEnvelope<{ scanUrl: string }>>(
-          `/admin/checkpoints/${checkpoint.id}`,
-          { rotateToken: true },
-        );
-        const generated = {
-          ...checkpoint,
-          scanUrl: response.data.data.scanUrl,
-          imageUrl: await QRCode.toDataURL(response.data.data.scanUrl, {
-            width: 420,
-            margin: 2,
-            errorCorrectionLevel: 'M',
-          }),
-        };
-        setCheckpointQrs((current) => ({ ...current, [checkpoint.id]: generated }));
+        for (const team of setup.teams) {
+          const response = await api.patch<ApiEnvelope<{ scanUrl: string }>>(
+            `/admin/checkpoints/${checkpoint.id}`,
+            { rotateToken: true, teamId: team.id },
+          );
+          const generated = {
+            ...checkpoint,
+            teamId: team.id,
+            teamCode: team.code,
+            scanUrl: response.data.data.scanUrl,
+            imageUrl: await QRCode.toDataURL(response.data.data.scanUrl, {
+              width: 420,
+              margin: 2,
+              errorCorrectionLevel: 'M',
+            }),
+          };
+          setCheckpointQrs((current) => ({
+            ...current,
+            [qrKey(checkpoint.id, team.id)]: generated,
+          }));
+        }
       }
-      setNotice('All checkpoint QR codes are ready to download.');
+      setNotice('All team-specific checkpoint QR codes are ready to download.');
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not generate all QR codes.');
     } finally {
@@ -576,7 +578,7 @@ export function AdminPage() {
                 <Button
                   type="button"
                   variant="secondary"
-                  disabled={!qrEditable || busy === 'all-qrs'}
+                  disabled={!qrEditable || !setup.teams.length || busy === 'all-qrs'}
                   onClick={() => void generateAllQrs()}
                 >
                   <QrCode className="mr-2" size={18} />
@@ -585,25 +587,36 @@ export function AdminPage() {
               </div>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {setup.checkpoints.map((checkpoint) => (
-                <CheckpointQrCard
-                  key={checkpoint.id}
-                  checkpoint={checkpoint}
-                  generated={checkpointQrs[checkpoint.id]}
-                  busy={busy === `qr-${checkpoint.id}`}
-                  disabled={!qrEditable || busy === 'all-qrs'}
-                  onGenerate={() => void generateQr(checkpoint)}
-                  onEditClue={() => {
-                    setSelectedCheckpointForClue(checkpoint.id);
-                    setCluesModalOpen(true);
-                  }}
-                  onEditDifficulty={() => {
-                    setSelectedCheckpointForDifficulty(checkpoint.id);
-                    setRoundDifficultiesOpen(true);
-                  }}
-                />
-              ))}
+              {setup.checkpoints.flatMap((checkpoint) =>
+                setup.teams.map((team) => {
+                  const key = qrKey(checkpoint.id, team.id);
+                  return (
+                    <CheckpointQrCard
+                      key={key}
+                      checkpoint={checkpoint}
+                      team={team}
+                      generated={checkpointQrs[key]}
+                      busy={busy === `qr-${key}`}
+                      disabled={!qrEditable || busy === 'all-qrs'}
+                      onGenerate={() => void generateQr(checkpoint, team)}
+                      onEditClue={() => {
+                        setSelectedCheckpointForClue(checkpoint.id);
+                        setCluesModalOpen(true);
+                      }}
+                      onEditDifficulty={() => {
+                        setSelectedCheckpointForDifficulty(checkpoint.id);
+                        setRoundDifficultiesOpen(true);
+                      }}
+                    />
+                  );
+                }),
+              )}
             </div>
+            {!setup.teams.length ? (
+              <p className="mt-4 text-sm text-slate-400">
+                Add a team to generate its checkpoint QR codes.
+              </p>
+            ) : null}
             <p className="mt-3 text-xs text-amber-200">
               Replacing a QR immediately invalidates the previous one, including while the hunt is
               running.

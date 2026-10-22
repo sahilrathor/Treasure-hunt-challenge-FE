@@ -16,6 +16,8 @@ export interface CheckpointSummary {
 }
 
 export interface GeneratedCheckpointQr extends CheckpointSummary {
+  teamId?: string;
+  teamCode?: string;
   scanUrl: string;
   imageUrl: string;
 }
@@ -28,6 +30,7 @@ export function CheckpointQrCard({
   onGenerate,
   onEditClue,
   onEditDifficulty,
+  team,
 }: {
   checkpoint: CheckpointSummary;
   generated?: GeneratedCheckpointQr;
@@ -36,6 +39,7 @@ export function CheckpointQrCard({
   onGenerate(): void;
   onEditClue?(): void;
   onEditDifficulty?(): void;
+  team?: { id: string; code: string; name: string };
 }) {
   return (
     <article className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 flex flex-col justify-between">
@@ -43,7 +47,7 @@ export function CheckpointQrCard({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">
-              Checkpoint {checkpoint.sequence}
+              {team ? `${team.code} · ` : ''}Checkpoint {checkpoint.sequence}
             </p>
             <h3 className="font-black text-slate-100">{checkpoint.label}</h3>
             <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-400">
@@ -111,13 +115,24 @@ export function CheckpointQrCard({
           <div className="rounded-xl bg-white p-3">
             <img
               src={generated.imageUrl}
-              alt={`QR code for ${checkpoint.label}`}
+              alt={
+                team
+                  ? `QR code for ${team.name} at ${checkpoint.label}`
+                  : `QR code for ${checkpoint.label}`
+              }
               className="mx-auto aspect-square w-full max-w-64"
             />
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Button asChild>
-              <a href={generated.imageUrl} download={`checkpoint-${checkpoint.sequence}-qr.png`}>
+              <a
+                href={generated.imageUrl}
+                download={
+                  team
+                    ? `${team.code}-checkpoint-${checkpoint.sequence}-qr.png`
+                    : `checkpoint-${checkpoint.sequence}-qr.png`
+                }
+              >
                 <Download className="mr-2" size={17} /> Download
               </a>
             </Button>
