@@ -7,6 +7,7 @@ import {
   Gamepad2,
   Gauge,
   Key,
+  Pencil,
   Plus,
   QrCode,
   RotateCcw,
@@ -76,6 +77,12 @@ interface Credential extends Member {
   password: string;
 }
 
+interface TeamEdit {
+  id: string;
+  code: string;
+  name: string;
+}
+
 const blankMember = (): Member => ({ memberCode: '', displayName: '' });
 
 export function AdminPage() {
@@ -86,6 +93,7 @@ export function AdminPage() {
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [checkpointQrs, setCheckpointQrs] = useState<Record<string, GeneratedCheckpointQr>>({});
   const [selectedQrTeamId, setSelectedQrTeamId] = useState('');
+  const [editingTeam, setEditingTeam] = useState<TeamEdit | null>(null);
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -273,6 +281,56 @@ export function AdminPage() {
       await load();
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not add the team.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function saveTeam(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingTeam) return;
+    setBusy(`edit-team-${editingTeam.id}`);
+    setError('');
+    setNotice('');
+    try {
+      await api.patch(`/admin/teams/${editingTeam.id}`, {
+        code: editingTeam.code,
+        name: editingTeam.name,
+      });
+      setEditingTeam(null);
+      setNotice('Team details updated.');
+      await load();
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'Could not update the team.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function deleteTeam(team: Team) {
+    if (
+      !window.confirm(
+        `Delete ${team.name} (${team.code}) and all ${team.participants.length} member accounts?`,
+      )
+    ) {
+      return;
+    }
+    setBusy(`delete-team-${team.id}`);
+    setError('');
+    setNotice('');
+    try {
+      await api.delete(`/admin/teams/${team.id}`);
+      setCheckpointQrs((current) =>
+        Object.fromEntries(
+          Object.entries(current).filter(([key]) => !key.endsWith(`:${team.id}`)),
+        ),
+      );
+      if (selectedQrTeamId === team.id) setSelectedQrTeamId('');
+      if (editingTeam?.id === team.id) setEditingTeam(null);
+      setNotice(`${team.name} was deleted.`);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'Could not delete the team.');
     } finally {
       setBusy('');
     }
@@ -885,22 +943,88 @@ export function AdminPage() {
             {setup.teams.map((team) => (
               <Panel key={team.id} className="flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="font-black text-lg text-slate-100">{team.name}</p>
-                      <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-0.5 font-mono text-xs font-bold text-cyan-300">
-                        {team.code}
-                      </span>
+                  {editingTeam?.id === team.id ? (
+                    <form className="grid gap-3" onSubmit={(event) => void saveTeam(event)}>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field
+                          label="Team name"
+                          required
+                          value={editingTeam.name}
+                          onChange={(event) =>
+                            setEditingTeam((current) =>
+                              current ? { ...current, name: event.target.value } : current,
+                            )
+                          }
+                        />
+                        <Field
+                          label="Team code"
+                          required
+                          value={editingTeam.code}
+                          onChange={(event) =>
+                            setEditingTeam((current) =>
+                              current ? { ...current, code: event.target.value } : current,
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          className="min-h-9 px-3 text-xs"
+                          disabled={busy === `edit-team-${team.id}`}
+                        >
+                          {busy === `edit-team-${team.id}` ? 'Savingâ€¦' : 'Save team'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="min-h-9 px-3 text-xs"
+                          onClick={() => setEditingTeam(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-lg font-black text-slate-100">{team.name}</p>
+                        <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-0.5 font-mono text-xs font-bold text-cyan-300">
+                          {team.code}
+                        </span>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="min-h-8 px-2.5 text-xs"
+                          onClick={() => setSelectedTeamRounds(team.id)}
+                        >
+                          View Rounds
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="min-h-8 px-2.5 text-xs"
+                          disabled={!editable}
+                          onClick={() =>
+                            setEditingTeam({ id: team.id, code: team.code, name: team.name })
+                          }
+                        >
+                          <Pencil className="mr-1" size={13} /> Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="danger"
+                          className="min-h-8 px-2.5 text-xs"
+                          disabled={!editable || busy === `delete-team-${team.id}`}
+                          onClick={() => void deleteTeam(team)}
+                        >
+                          <Trash2 className="mr-1" size={13} />
+                          {busy === `delete-team-${team.id}` ? 'Deletingâ€¦' : 'Delete'}
+                        </Button>
+                      </div>
                     </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="min-h-8 px-2.5 text-xs"
-                      onClick={() => setSelectedTeamRounds(team.id)}
-                    >
-                      View Rounds
-                    </Button>
-                  </div>
+                  )}
                   <ul className="mt-3 grid gap-1.5 text-sm text-slate-400">
                     {team.participants.map((member) => (
                       <li
