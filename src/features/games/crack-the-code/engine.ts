@@ -1,7 +1,10 @@
+export type DigitStatus = 'exact' | 'partial' | 'wrong';
+
 export interface GuessResult {
   guess: number[];
   exact: number;
   partial: number;
+  details?: DigitStatus[];
 }
 
 export interface CrackTheCodeState {
@@ -55,10 +58,10 @@ export function playWinSound() {
 }
 
 export function createCrackTheCodeState(
-  digits = 4,
+  digits = 5,
   maxGuesses = 6,
   maxDigit = 8,
-  allowDuplicates = false,
+  allowDuplicates = true,
 ): CrackTheCodeState {
   return {
     digits,
@@ -71,15 +74,20 @@ export function createCrackTheCodeState(
   };
 }
 
-export function evaluateGuess(guess: number[], secret: number[]): { exact: number; partial: number } {
+export function evaluateGuess(
+  guess: number[],
+  secret: number[],
+): { exact: number; partial: number; details: DigitStatus[] } {
   let exact = 0;
   const secretRemaining: (number | null)[] = [...secret];
   const guessRemaining: (number | null)[] = [...guess];
+  const details: DigitStatus[] = new Array(guess.length).fill('wrong');
 
   // 1. First pass: find exact matches
   for (let i = 0; i < guess.length; i++) {
     if (guess[i] === secret[i]) {
       exact++;
+      details[i] = 'exact';
       secretRemaining[i] = null;
       guessRemaining[i] = null;
     }
@@ -93,12 +101,13 @@ export function evaluateGuess(guess: number[], secret: number[]): { exact: numbe
       const matchIdx = secretRemaining.indexOf(val);
       if (matchIdx !== -1) {
         partial++;
+        details[i] = 'partial';
         secretRemaining[matchIdx] = null;
       }
     }
   }
 
-  return { exact, partial };
+  return { exact, partial, details };
 }
 
 export function appendDigit(state: CrackTheCodeState, digit: number): CrackTheCodeState {

@@ -119,10 +119,10 @@ export function AdminGameSandboxModal({
           challengeToken: token,
         };
       case 'crack-the-code': {
-        const digits = difficulty === 'easy' ? 3 : 4;
+        const digits = difficulty === 'easy' ? 5 : 6;
         const maxGuesses = difficulty === 'hard' ? 5 : 6;
-        const maxDigit = difficulty === 'easy' ? 6 : difficulty === 'medium' ? 8 : 9;
-        const allowDuplicates = difficulty === 'hard';
+        const maxDigit = difficulty === 'hard' ? 9 : 8;
+        const allowDuplicates = true;
         const pool = Array.from({ length: maxDigit }, (_, i) => i + 1);
         const code: number[] = [];
         if (!allowDuplicates) {

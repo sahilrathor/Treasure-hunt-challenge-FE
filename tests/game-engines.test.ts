@@ -364,17 +364,38 @@ describe('isolated game engines', () => {
     state = clearInput(state);
     expect(state.currentInput).toEqual([]);
 
+    // Test duplicate digits when allowDuplicates is true
+    let dupState = createCrackTheCodeState(3, 6, 6, true);
+    dupState = appendDigit(dupState, 2);
+    dupState = appendDigit(dupState, 2);
+    expect(dupState.currentInput).toEqual([2, 2]);
+
     // Evaluate guess against secret [1, 2, 3]
     const secret = [1, 2, 3];
     // Guess [1, 3, 5] -> exact: 1 (for 1), partial: 1 (for 3)
     const result1 = evaluateGuess([1, 3, 5], secret);
     expect(result1.exact).toBe(1);
     expect(result1.partial).toBe(1);
+    expect(result1.details).toEqual(['exact', 'partial', 'wrong']);
 
     // Guess [1, 2, 3] -> exact: 3, partial: 0
     const result2 = evaluateGuess([1, 2, 3], secret);
     expect(result2.exact).toBe(3);
     expect(result2.partial).toBe(0);
+    expect(result2.details).toEqual(['exact', 'exact', 'exact']);
+
+    // 5-digit evaluation
+    const secret5 = [1, 2, 3, 4, 5];
+    const result5 = evaluateGuess([1, 5, 3, 2, 8], secret5);
+    expect(result5.exact).toBe(2);
+    expect(result5.partial).toBe(2);
+    expect(result5.details).toEqual(['exact', 'partial', 'exact', 'partial', 'wrong']);
+
+    // 6-digit evaluation
+    const secret6 = [1, 2, 3, 4, 5, 6];
+    const result6 = evaluateGuess([1, 2, 3, 4, 5, 6], secret6);
+    expect(result6.exact).toBe(6);
+    expect(result6.partial).toBe(0);
   });
 
   it('runs sliding-puzzle tile slide mechanics and win check', async () => {

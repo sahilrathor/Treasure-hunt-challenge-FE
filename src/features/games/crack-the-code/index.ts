@@ -6,4 +6,4 @@ export {
   backspaceDigit,
   clearInput,
 } from './engine';
-export type { CrackTheCodeState, GuessResult } from './engine';
+export type { CrackTheCodeState, GuessResult, DigitStatus } from './engine';

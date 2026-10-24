@@ -10,15 +10,17 @@ import {
   playSubmitSound,
   playWinSound,
   type CrackTheCodeState,
+  type DigitStatus,
+  type GuessResult,
 } from './engine';
 import { Button } from '@/components/atoms/Button';
 import type { GameProps } from '../shared/types';
 
 export function CrackTheCodeGame({ challenge, disabled, onComplete }: GameProps) {
-  const digits = Number(challenge.digits ?? 4);
+  const digits = Number(challenge.digits ?? 5);
   const maxGuesses = Number(challenge.maxGuesses ?? 6);
   const maxDigit = Number(challenge.maxDigit ?? 8);
-  const allowDuplicates = Boolean(challenge.allowDuplicates ?? false);
+  const allowDuplicates = Boolean(challenge.allowDuplicates ?? true);
 
   // Fallback secret if not provided (e.g. sandbox without pre-gen)
   const secretCode = useMemo(() => {
@@ -63,12 +65,13 @@ export function CrackTheCodeGame({ challenge, disabled, onComplete }: GameProps)
     if (state.currentInput.length !== state.digits) return;
 
     const evaluation = evaluateGuess(state.currentInput, secretCode);
-    const newGuesses = [
+    const newGuesses: GuessResult[] = [
       ...state.guesses,
       {
         guess: state.currentInput,
         exact: evaluation.exact,
         partial: evaluation.partial,
+        details: evaluation.details,
       },
     ];
 
@@ -138,6 +141,25 @@ export function CrackTheCodeGame({ challenge, disabled, onComplete }: GameProps)
 
   const remainingGuesses = maxGuesses - state.guesses.length;
 
+  const keyStatusMap = useMemo(() => {
+    const map: Record<number, DigitStatus> = {};
+    for (const g of state.guesses) {
+      const details = g.details ?? evaluateGuess(g.guess, secretCode).details;
+      g.guess.forEach((digit, i) => {
+        const status = details[i];
+        const prev = map[digit];
+        if (status === 'exact') {
+          map[digit] = 'exact';
+        } else if (status === 'partial' && prev !== 'exact') {
+          map[digit] = 'partial';
+        } else if (status === 'wrong' && !prev) {
+          map[digit] = 'wrong';
+        }
+      });
+    }
+    return map;
+  }, [state.guesses, secretCode]);
+
   return (
     <div className="flex flex-col items-center gap-3.5 w-full max-w-sm mx-auto">
       {/* Header Info */}
@@ -184,24 +206,47 @@ export function CrackTheCodeGame({ challenge, disabled, onComplete }: GameProps)
             >
               <div className="flex items-center gap-1.5 font-mono text-base font-bold">
                 <span className="text-slate-500 text-xs w-4">#{idx + 1}</span>
-                {g.guess.map((num, i) => (
-                  <span
-                    key={i}
-                    className="flex items-center justify-center w-7 h-7 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-sm"
-                  >
-                    {num}
-                  </span>
-                ))}
+                {g.guess.map((num, i) => {
+                  const details = g.details ?? evaluateGuess(g.guess, secretCode).details;
+                  const status = details[i];
+                  return (
+                    <span
+                      key={i}
+                      className={`flex items-center justify-center w-7 h-7 rounded-lg font-mono text-sm font-black transition border ${
+                        status === 'exact'
+                          ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-sm shadow-emerald-500/20'
+                          : status === 'partial'
+                            ? 'bg-orange-500/25 border-orange-500 text-orange-300 shadow-sm shadow-orange-500/20'
+                            : 'bg-slate-950/80 border-slate-800 text-slate-500'
+                      }`}
+                      title={
+                        status === 'exact'
+                          ? `Digit ${num}: Correct digit & spot`
+                          : status === 'partial'
+                            ? `Digit ${num}: Correct digit, wrong spot`
+                            : `Digit ${num}: Wrong digit`
+                      }
+                    >
+                      {num}
+                    </span>
+                  );
+                })}
               </div>
 
               {/* Clue indicators */}
               <div className="flex items-center gap-1.5 text-xs font-bold">
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  title={`${g.exact} correct digit(s) in correct spot`}
+                >
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                   {g.exact}
                 </span>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                  title={`${g.partial} correct digit(s) in wrong spot`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
                   {g.partial}
                 </span>
               </div>
@@ -212,22 +257,29 @@ export function CrackTheCodeGame({ challenge, disabled, onComplete }: GameProps)
             <div className="flex flex-col items-center justify-center h-28 text-center text-slate-500 text-xs gap-1.5">
               <Lock className="text-slate-600" size={24} />
               <p>Crack the secret {digits}-digit combination.</p>
-              <p className="text-[11px] text-slate-600">
-                🟢 = Right digit & spot · 🟡 = Right digit, wrong spot
+              <p className="text-[11px] text-slate-400">
+                <span className="text-emerald-400 font-semibold">🟢 Green</span> = Correct digit & spot ·{' '}
+                <span className="text-orange-400 font-semibold">🟠 Orange</span> = Correct digit, wrong spot
               </p>
             </div>
           )}
         </div>
 
         {/* Current Active Input Slot */}
-        <div className="flex items-center justify-center gap-2 pt-2 border-t border-slate-800/80">
+        <div
+          className={`flex items-center justify-center pt-2 border-t border-slate-800/80 ${
+            digits >= 6 ? 'gap-1.5' : 'gap-2'
+          }`}
+        >
           {Array.from({ length: digits }).map((_, i) => {
             const val = state.currentInput[i];
             const isCurrent = i === state.currentInput.length;
             return (
               <div
                 key={i}
-                className={`flex items-center justify-center w-11 h-12 rounded-xl text-lg font-mono font-black transition ${
+                className={`flex items-center justify-center rounded-xl font-mono font-black transition ${
+                  digits >= 6 ? 'w-10 h-11 text-base' : 'w-11 h-12 text-lg'
+                } ${
                   val !== undefined
                     ? 'border-cyan-400/80 bg-cyan-950/30 text-cyan-200 border-2 shadow-lg shadow-cyan-500/10'
                     : isCurrent
@@ -271,9 +323,10 @@ export function CrackTheCodeGame({ challenge, disabled, onComplete }: GameProps)
 
       {/* Number Keypad & Action Bar */}
       <div className="w-full flex flex-col gap-2">
-        <div className="grid grid-cols-4 gap-2">
+        <div className={`grid gap-2 ${maxDigit === 9 ? 'grid-cols-3' : 'grid-cols-4'}`}>
           {Array.from({ length: maxDigit }, (_, i) => i + 1).map((num) => {
             const isUsed = !allowDuplicates && state.currentInput.includes(num);
+            const keyStatus = keyStatusMap[num];
             return (
               <button
                 key={num}
@@ -283,7 +336,13 @@ export function CrackTheCodeGame({ challenge, disabled, onComplete }: GameProps)
                 className={`flex items-center justify-center h-11 rounded-xl text-base font-mono font-black border transition select-none ${
                   isUsed
                     ? 'border-slate-800 bg-slate-950 text-slate-600 opacity-40 cursor-not-allowed'
-                    : 'border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800 active:bg-cyan-600 active:border-cyan-400 shadow-sm'
+                    : keyStatus === 'exact'
+                      ? 'border-emerald-500/80 bg-emerald-950/50 text-emerald-300 hover:bg-emerald-900/60 active:bg-emerald-600 shadow-sm shadow-emerald-500/20'
+                      : keyStatus === 'partial'
+                        ? 'border-orange-500/80 bg-orange-950/50 text-orange-300 hover:bg-orange-900/60 active:bg-orange-600 shadow-sm shadow-orange-500/20'
+                        : keyStatus === 'wrong'
+                          ? 'border-slate-800/80 bg-slate-950/70 text-slate-600 hover:bg-slate-900 opacity-50'
+                          : 'border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800 active:bg-cyan-600 active:border-cyan-400 shadow-sm'
                 }`}
               >
                 {num}

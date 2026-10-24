@@ -157,8 +157,8 @@ export const GAME_METADATA: Record<GameCode, GameInfo> = {
     howToPlay: [
       'Enter your multi-digit numeric guess and press Check Code.',
       '🟢 Green: Correct digit placed in the exact right spot.',
-      '🟡 Yellow: Correct digit present in the code, but in a different position.',
-      'Analyze previous feedback to crack the code within the attempt limit.',
+      '🟠 Orange: Correct digit present in the code, but in a different position.',
+      'Analyze previous feedback to crack the 5 or 6-digit combination within the attempt limit.',
     ],
     controls: 'Number pad buttons 1-9 & Check Code (or keyboard numbers)',
     objective: 'Deduce the exact secret passcode before attempts run out.',

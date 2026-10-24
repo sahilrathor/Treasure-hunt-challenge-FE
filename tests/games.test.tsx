@@ -287,7 +287,7 @@ it('renders MiniPlatformerGame with controls and HUD', async () => {
   expect(screen.getByRole('button', { name: /Move right/i })).toBeInTheDocument();
 });
 
-it('renders CrackTheCodeGame and submits guesses', async () => {
+it('renders CrackTheCodeGame and submits guesses with green and orange feedback', async () => {
   const complete = vi.fn();
   const { CrackTheCodeGame } = await import('@/features/games/crack-the-code/CrackTheCodeGame');
   render(
@@ -300,10 +300,62 @@ it('renders CrackTheCodeGame and submits guesses', async () => {
   expect(screen.getByText(/Guesses:/i)).toBeInTheDocument();
   expect(screen.getByText(/Crack the secret/i)).toBeInTheDocument();
 
-  // Press digits 1, 2, 3 and submit
+  // Press digits 1, 3, 5 and submit (1 is exact -> green, 3 is partial -> orange, 5 is wrong)
+  fireEvent.click(screen.getByRole('button', { name: '1' }));
+  fireEvent.click(screen.getByRole('button', { name: '3' }));
+  fireEvent.click(screen.getByRole('button', { name: '5' }));
+  fireEvent.click(screen.getByRole('button', { name: /CHECK CODE/i }));
+
+  expect(screen.getByTitle(/Digit 1: Correct digit & spot/i)).toBeInTheDocument();
+  expect(screen.getByTitle(/Digit 3: Correct digit, wrong spot/i)).toBeInTheDocument();
+  expect(screen.getByTitle(/Digit 5: Wrong digit/i)).toBeInTheDocument();
+
+  // Now press 1, 2, 3 and submit to crack the code
   fireEvent.click(screen.getByRole('button', { name: '1' }));
   fireEvent.click(screen.getByRole('button', { name: '2' }));
   fireEvent.click(screen.getByRole('button', { name: '3' }));
+  fireEvent.click(screen.getByRole('button', { name: /CHECK CODE/i }));
+
+  expect(complete).toHaveBeenCalled();
+});
+
+it('allows repeating digits in CrackTheCodeGame', async () => {
+  const complete = vi.fn();
+  const { CrackTheCodeGame } = await import('@/features/games/crack-the-code/CrackTheCodeGame');
+  render(
+    <CrackTheCodeGame
+      challenge={{ digits: 3, maxGuesses: 6, maxDigit: 6, code: [2, 2, 2], challengeToken: 'code-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  // Press digit 2 three times and check code
+  fireEvent.click(screen.getByRole('button', { name: '2' }));
+  fireEvent.click(screen.getByRole('button', { name: '2' }));
+  fireEvent.click(screen.getByRole('button', { name: '2' }));
+  fireEvent.click(screen.getByRole('button', { name: /CHECK CODE/i }));
+
+  expect(complete).toHaveBeenCalled();
+});
+
+it('supports 5 and 6 digit codes in CrackTheCodeGame', async () => {
+  const complete = vi.fn();
+  const { CrackTheCodeGame } = await import('@/features/games/crack-the-code/CrackTheCodeGame');
+  render(
+    <CrackTheCodeGame
+      challenge={{ digits: 5, maxGuesses: 6, maxDigit: 8, code: [1, 2, 3, 4, 5], challengeToken: 'code-5-token' }}
+      onComplete={complete}
+    />,
+  );
+
+  expect(screen.getByText(/Crack the secret 5-digit combination/i)).toBeInTheDocument();
+
+  // Enter 5 digits and check code
+  fireEvent.click(screen.getByRole('button', { name: '1' }));
+  fireEvent.click(screen.getByRole('button', { name: '2' }));
+  fireEvent.click(screen.getByRole('button', { name: '3' }));
+  fireEvent.click(screen.getByRole('button', { name: '4' }));
+  fireEvent.click(screen.getByRole('button', { name: '5' }));
   fireEvent.click(screen.getByRole('button', { name: /CHECK CODE/i }));
 
   expect(complete).toHaveBeenCalled();
