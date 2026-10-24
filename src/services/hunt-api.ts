@@ -2,7 +2,7 @@ import { api, idempotencyHeaders } from './api-client';
 import type { AdminGame, ApiEnvelope, Assignment, Identity, Progress } from '@/types/api';
 
 export const huntApi = {
-  async login(input: { identifier: string; password: string; qrToken?: string }) {
+  async login(input: { identifier: string; password: string; qrToken?: string; force?: boolean }) {
     await api.post('/auth/login', input);
     return this.me();
   },

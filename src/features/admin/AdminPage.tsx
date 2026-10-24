@@ -7,6 +7,7 @@ import {
   Gamepad2,
   Gauge,
   Key,
+  LogOut,
   Pencil,
   Plus,
   QrCode,
@@ -45,9 +46,23 @@ import { api, ApiError } from '@/services/api-client';
 import { useAuthStore } from '@/stores/auth.store';
 import type { ApiEnvelope } from '@/types/api';
 
+export interface ActiveSession {
+  sessionId: string;
+  loggedInAt: string;
+  participantId: string;
+  displayName: string;
+  memberCode: string;
+  teamId: string;
+  teamName: string;
+  teamCode: string;
+}
+
 interface Member {
   memberCode: string;
   displayName: string;
+  isLoggedIn?: boolean;
+  loggedInAt?: string | null;
+  sessionId?: string | null;
 }
 
 interface Team {
@@ -71,6 +86,7 @@ interface SimpleSetup {
   } | null;
   teams: Team[];
   checkpoints: CheckpointSummary[];
+  activeSessions?: ActiveSession[];
 }
 
 interface Credential extends Member {
@@ -146,8 +162,34 @@ export function AdminPage() {
     }
   }
 
+  async function logoutParticipant(participantId: string, displayName: string) {
+    if (
+      !window.confirm(
+        `Log out ${displayName}? Their active session will be terminated immediately.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(`logout-${participantId}`);
+    try {
+      await api.post(`/admin/participants/${participantId}/logout`);
+      setNotice(`Logged out ${displayName}.`);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'Failed to log out participant.');
+    } finally {
+      setBusy('');
+    }
+  }
+
   useEffect(() => {
     void load();
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void load();
+      }
+    }, 12_000);
+    return () => clearInterval(interval);
   }, []);
 
   async function saveCheckpoints(event: FormEvent<HTMLFormElement>) {
@@ -555,6 +597,86 @@ export function AdminPage() {
         </Panel>
       ) : null}
 
+      <Panel className="border-emerald-500/30 bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/20">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="relative grid size-11 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">
+              <Users size={22} />
+              {(setup.activeSessions?.length ?? 0) > 0 ? (
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+                </span>
+              ) : null}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-black text-slate-100">Live Team Sessions</h2>
+                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-300">
+                  {setup.activeSessions?.length ?? 0} Online
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Track currently logged-in team members across all teams. Only one active player per team allowed.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-9 px-3 text-xs"
+            onClick={() => void load()}
+          >
+            <RotateCcw className="mr-1.5" size={13} /> Refresh Logins
+          </Button>
+        </div>
+
+        {setup.activeSessions && setup.activeSessions.length > 0 ? (
+          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {setup.activeSessions.map((session) => (
+              <div
+                key={session.sessionId}
+                className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/80 p-3"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2 w-2 shrink-0">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                    </span>
+                    <p className="truncate font-bold text-slate-100 text-sm">{session.displayName}</p>
+                    <span className="font-mono text-xs text-cyan-300">({session.memberCode})</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400 truncate">
+                    Team: <strong className="text-slate-300">{session.teamName}</strong> ({session.teamCode})
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Logged in:{' '}
+                    {new Date(session.loggedInAt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="danger"
+                  className="min-h-8 px-2.5 text-xs shrink-0"
+                  disabled={busy === `logout-${session.participantId}`}
+                  onClick={() => void logoutParticipant(session.participantId, session.displayName)}
+                >
+                  <LogOut className="mr-1" size={12} />
+                  {busy === `logout-${session.participantId}` ? '…' : 'Log Out'}
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-slate-500">No participants are currently logged in.</p>
+        )}
+      </Panel>
+
       {error ? (
         <p role="alert" className="rounded-xl bg-rose-500/10 p-3 text-rose-300">
           {error}
@@ -907,27 +1029,47 @@ export function AdminPage() {
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-slate-100">{p.displayName}</span>
                           <span className="font-mono text-xs text-cyan-300">{p.memberCode}</span>
+                          {p.isLoggedIn ? (
+                            <span className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              Online
+                            </span>
+                          ) : null}
                         </div>
                         <p className="text-xs text-slate-400">
                           Team: {p.teamName} ({p.teamCode})
                         </p>
                       </div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="min-h-9 px-3 text-xs"
-                        onClick={() =>
-                          setPasswordTarget({
-                            id: p.id,
-                            displayName: p.displayName,
-                            memberCode: p.memberCode,
-                            teamName: p.teamName,
-                          })
-                        }
-                      >
-                        <Key className="mr-1.5 text-cyan-300" size={14} />
-                        Change Password
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        {p.isLoggedIn ? (
+                          <Button
+                            type="button"
+                            variant="danger"
+                            className="min-h-9 px-3 text-xs"
+                            disabled={busy === `logout-${p.id}`}
+                            onClick={() => void logoutParticipant(p.id, p.displayName)}
+                          >
+                            <LogOut className="mr-1.5" size={13} />
+                            {busy === `logout-${p.id}` ? '…' : 'Log Out'}
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="min-h-9 px-3 text-xs"
+                          onClick={() =>
+                            setPasswordTarget({
+                              id: p.id,
+                              displayName: p.displayName,
+                              memberCode: p.memberCode,
+                              teamName: p.teamName,
+                            })
+                          }
+                        >
+                          <Key className="mr-1.5 text-cyan-300" size={14} />
+                          Change Password
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -987,7 +1129,16 @@ export function AdminPage() {
                   ) : (
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-lg font-black text-slate-100">{team.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-lg font-black text-slate-100">{team.name}</p>
+                          {team.participants.some((p) => p.isLoggedIn) ? (
+                            <span className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              Active:{' '}
+                              {team.participants.find((p) => p.isLoggedIn)?.displayName}
+                            </span>
+                          ) : null}
+                        </div>
                         <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-0.5 font-mono text-xs font-bold text-cyan-300">
                           {team.code}
                         </span>
@@ -1020,7 +1171,7 @@ export function AdminPage() {
                           onClick={() => void deleteTeam(team)}
                         >
                           <Trash2 className="mr-1" size={13} />
-                          {busy === `delete-team-${team.id}` ? 'Deletingâ€¦' : 'Delete'}
+                          {busy === `delete-team-${team.id}` ? 'Deleting…' : 'Delete'}
                         </Button>
                       </div>
                     </div>
@@ -1032,27 +1183,49 @@ export function AdminPage() {
                         className="flex items-center justify-between gap-2 rounded-xl border border-slate-800/80 bg-slate-950/40 px-3 py-2"
                       >
                         <div className="min-w-0">
-                          <p className="truncate font-semibold text-slate-200">
-                            {member.displayName}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="truncate font-semibold text-slate-200">
+                              {member.displayName}
+                            </p>
+                            {member.isLoggedIn ? (
+                              <span className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Online
+                              </span>
+                            ) : null}
+                          </div>
                           <p className="font-mono text-xs text-cyan-300">{member.memberCode}</p>
                         </div>
-                        <button
-                          type="button"
-                          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-300 transition hover:border-cyan-300 hover:text-cyan-300"
-                          onClick={() =>
-                            setPasswordTarget({
-                              id: member.id,
-                              displayName: member.displayName,
-                              memberCode: member.memberCode,
-                              teamName: team.name,
-                            })
-                          }
-                          title={`Change password for ${member.displayName}`}
-                        >
-                          <Key size={13} />
-                          <span>Change Password</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {member.isLoggedIn ? (
+                            <button
+                              type="button"
+                              className="flex shrink-0 items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20"
+                              disabled={busy === `logout-${member.id}`}
+                              onClick={() => void logoutParticipant(member.id, member.displayName)}
+                              title={`Log out ${member.displayName}`}
+                            >
+                              <LogOut size={12} />
+                              <span>{busy === `logout-${member.id}` ? '…' : 'Log Out'}</span>
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-300 transition hover:border-cyan-300 hover:text-cyan-300"
+                            onClick={() =>
+                              setPasswordTarget({
+                                id: member.id,
+                                displayName: member.displayName,
+                                memberCode: member.memberCode,
+                                teamName: team.name,
+                              })
+                            }
+                            title={`Change password for ${member.displayName}`}
+                          >
+                            <Key size={13} />
+                            <span>Change Password</span>
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>

@@ -8,7 +8,12 @@ interface AuthState {
   loading: boolean;
   initialized: boolean;
   restore(): Promise<void>;
-  login(input: { identifier: string; password: string; qrToken?: string }): Promise<Identity>;
+  login(input: {
+    identifier: string;
+    password: string;
+    qrToken?: string;
+    force?: boolean;
+  }): Promise<Identity>;
   logout(): Promise<void>;
 }
 

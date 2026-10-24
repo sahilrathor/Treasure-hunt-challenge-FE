@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 
+import { ApiError } from '@/services/api-client';
+import { huntApi } from '@/services/hunt-api';
 import { useAuthStore } from '@/stores/auth.store';
 
 const INACTIVITY_TIMEOUT_MS = 60 * 1000; // 1 minute of continuous inactivity
@@ -42,6 +44,30 @@ function InactivityWatcher() {
 
     const interval = setInterval(checkInactivity, 1000);
 
+    // Heartbeat check every 10 seconds to detect if another teammate logged in
+    const sessionCheckInterval = setInterval(() => {
+      if (identity.role === 'PARTICIPANT' && document.visibilityState === 'visible') {
+        huntApi.me().catch((err) => {
+          if (
+            err instanceof ApiError &&
+            (err.status === 401 || err.code === 'SESSION_EXPIRED' || err.code === 'UNAUTHENTICATED')
+          ) {
+            void logout().then(() => {
+              navigate('/login?reason=teammate_logged_in', { replace: true });
+            });
+          }
+        });
+      }
+    }, 10_000);
+
+    const onSessionExpired = () => {
+      void logout().then(() => {
+        navigate('/login?reason=teammate_logged_in', { replace: true });
+      });
+    };
+
+    window.addEventListener('hunt:session_expired', onSessionExpired);
+
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkInactivity();
@@ -53,6 +79,8 @@ function InactivityWatcher() {
     return () => {
       events.forEach((ev) => window.removeEventListener(ev, onActivity));
       clearInterval(interval);
+      clearInterval(sessionCheckInterval);
+      window.removeEventListener('hunt:session_expired', onSessionExpired);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [identity, logout, navigate]);

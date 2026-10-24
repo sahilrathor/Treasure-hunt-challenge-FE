@@ -28,6 +28,14 @@ api.interceptors.response.use(
   (error: AxiosError<ErrorBody>) => {
     const status = error.response?.status ?? 0;
     const body = error.response?.data?.error;
+    if (
+      status === 401 &&
+      (body?.code === 'SESSION_EXPIRED' || body?.code === 'UNAUTHENTICATED') &&
+      typeof window !== 'undefined' &&
+      !window.location.pathname.startsWith('/login')
+    ) {
+      window.dispatchEvent(new CustomEvent('hunt:session_expired'));
+    }
     return Promise.reject(
       new ApiError(
         status,
