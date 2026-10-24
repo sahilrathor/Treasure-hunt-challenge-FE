@@ -50,6 +50,11 @@ export function LoginPage() {
         <h1 className="mt-3 text-4xl font-black">
           {scanToken ? 'Log in to unlock this checkpoint.' : 'Welcome, player.'}
         </h1>
+        {params.get('reason') === 'inactivity' && (
+          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-semibold text-amber-300">
+            You were logged out due to 1 minute of continuous inactivity.
+          </div>
+        )}
         <div
           className={`mt-6 grid grid-cols-2 rounded-xl bg-slate-950 p-1 text-sm font-bold ${scanToken ? 'hidden' : ''}`}
         >

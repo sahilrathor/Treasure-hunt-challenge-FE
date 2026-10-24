@@ -40,6 +40,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       await huntApi.logout();
     } finally {
+      try {
+        const toRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('crack_the_code_') || k.startsWith('sliding_puzzle_') || k.startsWith('game_save_'))) {
+            toRemove.push(k);
+          }
+        }
+        toRemove.forEach((k) => localStorage.removeItem(k));
+      } catch {
+        // ignore storage errors
+      }
       set({ identity: null, initialized: true });
     }
   },

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpDown, Check, Grid, RotateCcw, Trophy } from 'lucide-react';
 
 import {
@@ -17,11 +17,62 @@ export function SlidingPuzzleGame({ challenge, disabled, onComplete }: GameProps
     ? (challenge.initialTiles as number[])
     : undefined;
 
+  const storageKey = useMemo(
+    () => `sliding_puzzle_save_${challenge.challengeToken ?? 'default'}`,
+    [challenge.challengeToken],
+  );
+
+  const [savedState] = useState<SlidingPuzzleState | null>(() => {
+    try {
+      const raw = localStorage.getItem(`sliding_puzzle_save_${challenge.challengeToken ?? 'default'}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.size === size && Array.isArray(parsed.tiles)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return null;
+  });
+
   const [state, setState] = useState<SlidingPuzzleState>(() =>
-    createSlidingPuzzleState(size, scrambleMoves, initialTiles),
+    savedState ?? createSlidingPuzzleState(size, scrambleMoves, initialTiles),
   );
 
   const completedRef = useRef(false);
+
+  // Auto-save game state periodically after interval and on changes
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const persistState = useCallback(() => {
+    try {
+      if (stateRef.current.status === 'won') {
+        localStorage.removeItem(storageKey);
+      } else {
+        localStorage.setItem(storageKey, JSON.stringify(stateRef.current));
+      }
+    } catch {
+      // ignore
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    persistState();
+  }, [state, persistState]);
+
+  useEffect(() => {
+    const timer = setInterval(persistState, 1000);
+    window.addEventListener('beforeunload', persistState);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('beforeunload', persistState);
+      persistState();
+    };
+  }, [persistState]);
 
   const handleTileClick = useCallback(
     (tileIdx: number) => {
@@ -31,6 +82,11 @@ export function SlidingPuzzleGame({ challenge, disabled, onComplete }: GameProps
 
       if (next.status === 'won' && !completedRef.current) {
         completedRef.current = true;
+        try {
+          localStorage.removeItem(storageKey);
+        } catch {
+          // ignore
+        }
         onComplete({
           challengeToken: challenge.challengeToken,
           moves: next.moves,
@@ -38,13 +94,18 @@ export function SlidingPuzzleGame({ challenge, disabled, onComplete }: GameProps
         });
       }
     },
-    [disabled, state, onComplete, challenge.challengeToken],
+    [disabled, state, onComplete, challenge.challengeToken, storageKey],
   );
 
   const handleReset = useCallback(() => {
     if (disabled) return;
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {
+      // ignore
+    }
     setState(createSlidingPuzzleState(size, scrambleMoves, state.initialTiles));
-  }, [disabled, size, scrambleMoves, state.initialTiles]);
+  }, [disabled, size, scrambleMoves, state.initialTiles, storageKey]);
 
   // Arrow key navigation
   useEffect(() => {

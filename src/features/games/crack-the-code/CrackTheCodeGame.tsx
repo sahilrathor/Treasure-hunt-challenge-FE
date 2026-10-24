@@ -22,10 +22,43 @@ export function CrackTheCodeGame({ challenge, disabled, onComplete }: GameProps)
   const maxDigit = Number(challenge.maxDigit ?? 8);
   const allowDuplicates = Boolean(challenge.allowDuplicates ?? true);
 
+  const storageKey = useMemo(
+    () => `crack_the_code_save_${challenge.challengeToken ?? 'default'}`,
+    [challenge.challengeToken],
+  );
+
+  // Restore initial state from localStorage if available
+  const [initialSaved] = useState<{ state: CrackTheCodeState; secretCode?: number[] } | null>(
+    () => {
+      try {
+        const key = `crack_the_code_save_${challenge.challengeToken ?? 'default'}`;
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (
+            parsed &&
+            parsed.state &&
+            parsed.state.digits === digits &&
+            parsed.state.maxGuesses === maxGuesses &&
+            Array.isArray(parsed.state.guesses)
+          ) {
+            return parsed;
+          }
+        }
+      } catch {
+        // ignore storage errors
+      }
+      return null;
+    },
+  );
+
   // Fallback secret if not provided (e.g. sandbox without pre-gen)
   const secretCode = useMemo(() => {
     if (Array.isArray(challenge.code) && challenge.code.length === digits) {
       return challenge.code as number[];
+    }
+    if (Array.isArray(initialSaved?.secretCode) && initialSaved.secretCode.length === digits) {
+      return initialSaved.secretCode;
     }
     // Generate deterministic/client fallback
     const res: number[] = [];
@@ -39,13 +72,56 @@ export function CrackTheCodeGame({ challenge, disabled, onComplete }: GameProps)
       }
     }
     return res;
-  }, [challenge.code, digits, maxDigit, allowDuplicates]);
+  }, [challenge.code, digits, maxDigit, allowDuplicates, initialSaved?.secretCode]);
 
-  const [state, setState] = useState<CrackTheCodeState>(() =>
-    createCrackTheCodeState(digits, maxGuesses, maxDigit, allowDuplicates),
-  );
+  const [state, setState] = useState<CrackTheCodeState>(() => {
+    if (initialSaved?.state) {
+      return initialSaved.state;
+    }
+    return createCrackTheCodeState(digits, maxGuesses, maxDigit, allowDuplicates);
+  });
 
   const completedRef = useRef(false);
+
+  // Auto-save game state periodically after interval and on changes
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const secretCodeRef = useRef(secretCode);
+  secretCodeRef.current = secretCode;
+
+  const persistState = useCallback(() => {
+    try {
+      if (stateRef.current.status === 'won') {
+        localStorage.removeItem(storageKey);
+      } else {
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            state: stateRef.current,
+            secretCode: secretCodeRef.current,
+            updatedAt: Date.now(),
+          }),
+        );
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    persistState();
+  }, [state, persistState]);
+
+  useEffect(() => {
+    const timer = setInterval(persistState, 1000);
+    window.addEventListener('beforeunload', persistState);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('beforeunload', persistState);
+      persistState();
+    };
+  }, [persistState]);
 
   const handleAppend = useCallback(
     (digit: number) => {
@@ -80,6 +156,11 @@ export function CrackTheCodeGame({ challenge, disabled, onComplete }: GameProps)
 
     if (isWon) {
       playWinSound();
+      try {
+        localStorage.removeItem(storageKey);
+      } catch {
+        // ignore
+      }
       setState((prev) => ({
         ...prev,
         guesses: newGuesses,
@@ -111,12 +192,17 @@ export function CrackTheCodeGame({ challenge, disabled, onComplete }: GameProps)
         currentInput: [],
       }));
     }
-  }, [disabled, state, secretCode, onComplete, challenge.challengeToken]);
+  }, [disabled, state, secretCode, onComplete, challenge.challengeToken, storageKey]);
 
   const handleRestart = useCallback(() => {
     if (disabled) return;
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {
+      // ignore
+    }
     setState(createCrackTheCodeState(digits, maxGuesses, maxDigit, allowDuplicates));
-  }, [disabled, digits, maxGuesses, maxDigit, allowDuplicates]);
+  }, [disabled, digits, maxGuesses, maxDigit, allowDuplicates, storageKey]);
 
   // Keyboard events
   useEffect(() => {

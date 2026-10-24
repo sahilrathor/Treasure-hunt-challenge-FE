@@ -398,8 +398,41 @@ it('renders PacmanGame and shows game controls', async () => {
   expect(screen.getByRole('button', { name: /Move Up/i })).toBeInTheDocument();
 });
 
+it('resumes CrackTheCodeGame state after page reload from localStorage', async () => {
+  const complete = vi.fn();
+  const { CrackTheCodeGame } = await import('@/features/games/crack-the-code/CrackTheCodeGame');
+  const challenge = {
+    digits: 5,
+    maxGuesses: 6,
+    maxDigit: 8,
+    code: [1, 2, 3, 4, 5],
+    challengeToken: 'resume-token',
+  };
 
+  // 1. Initial render and enter guess #1
+  const { unmount } = render(
+    <CrackTheCodeGame challenge={challenge} onComplete={complete} />,
+  );
 
+  fireEvent.click(screen.getByRole('button', { name: '1' }));
+  fireEvent.click(screen.getByRole('button', { name: '3' }));
+  fireEvent.click(screen.getByRole('button', { name: '5' }));
+  fireEvent.click(screen.getByRole('button', { name: '7' }));
+  fireEvent.click(screen.getByRole('button', { name: '8' }));
+  fireEvent.click(screen.getByRole('button', { name: /CHECK CODE/i }));
 
+  expect(screen.getByText(/#1/i)).toBeInTheDocument();
 
+  // Simulate refresh: unmount and remount with the same challenge
+  unmount();
+
+  render(
+    <CrackTheCodeGame challenge={challenge} onComplete={complete} />,
+  );
+
+  // Verifies that guess #1 was restored from localStorage
+  expect(screen.getByText(/#1/i)).toBeInTheDocument();
+  expect(screen.getByTitle(/Digit 1: Correct digit & spot/i)).toBeInTheDocument();
+  expect(screen.getAllByText('5').length).toBeGreaterThanOrEqual(2);
+});
 
