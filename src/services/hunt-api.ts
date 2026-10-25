@@ -323,4 +323,23 @@ export const huntApi = {
       >('/admin/simple/setup', payload)
     ).data.data;
   },
+  async resetEventData(
+    eventId: string,
+    payload: {
+      target: 'locations' | 'teams' | 'rounds' | 'all';
+      confirmationText: string;
+    },
+  ) {
+    return (
+      await api.post<
+        ApiEnvelope<{
+          eventId: string;
+          target: string;
+          deleted: boolean;
+          message: string;
+        }>
+      >(`/admin/events/${eventId}/reset`, payload)
+    ).data.data;
+  },
 };
+

@@ -45,6 +45,7 @@ import { RoundDifficultiesModal } from './RoundDifficultiesModal';
 import { CooldownSettingsModal } from './CooldownSettingsModal';
 import { EditLocationModal, type LocationData } from './EditLocationModal';
 import { TeamLocationRoutesModal } from './TeamLocationRoutesModal';
+import { ResetHuntModal } from './ResetHuntModal';
 import { Button } from '@/components/atoms/Button';
 import { Field } from '@/components/atoms/Field';
 import { Panel } from '@/components/atoms/Panel';
@@ -148,6 +149,7 @@ export function AdminPage() {
   const [selectedCheckpointForClue, setSelectedCheckpointForClue] = useState<string | null>(null);
   const [roundDifficultiesOpen, setRoundDifficultiesOpen] = useState(false);
   const [cooldownOpen, setCooldownOpen] = useState(false);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
   const [selectedCheckpointForDifficulty, setSelectedCheckpointForDifficulty] = useState<string | null>(null);
   const [unlockedLogoutIds, setUnlockedLogoutIds] = useState<Record<string, boolean>>({});
   const clickTrackerRef = useRef<Record<string, { count: number; timer: ReturnType<typeof setTimeout> }>>({});
@@ -742,6 +744,14 @@ export function AdminPage() {
                 onClick={() => setRoundMappingOpen(true)}
               >
                 <Shuffle className="mr-1.5 text-cyan-300" size={16} /> Round Games
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-10 text-xs bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-500/20 hover:border-rose-400"
+                onClick={() => setResetModalOpen(true)}
+              >
+                <Trash2 className="mr-1.5 text-rose-400" size={16} /> Reset Data
               </Button>
             </>
           ) : null}
@@ -1769,6 +1779,18 @@ export function AdminPage() {
           checkpoints={setup.checkpoints}
           roundCount={roundCount}
           onSaved={() => void load()}
+        />
+      )}
+
+      {setup.event && (
+        <ResetHuntModal
+          isOpen={resetModalOpen}
+          onClose={() => setResetModalOpen(false)}
+          eventId={setup.event.id}
+          onSuccess={(msg) => {
+            setNotice(msg);
+            void load();
+          }}
         />
       )}
     </div>
