@@ -93,6 +93,7 @@ interface SimpleSetup {
     checkpoint_count: number;
     round_count?: number;
     location_count?: number;
+    allow_multiple_logins?: boolean;
   } | null;
   teams: Team[];
   checkpoints: CheckpointSummary[];
@@ -136,6 +137,8 @@ export function AdminPage() {
   const [routeNotice, setRouteNotice] = useState('');
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamCode, setNewTeamCode] = useState('');
+  const [allowMultipleLogins, setAllowMultipleLogins] = useState(false);
+  const [savingLoginPolicy, setSavingLoginPolicy] = useState(false);
   const [members, setMembers] = useState<Member[]>([blankMember(), blankMember(), blankMember()]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [checkpointQrs, setCheckpointQrs] = useState<Record<string, GeneratedCheckpointQr>>({});
@@ -246,18 +249,21 @@ export function AdminPage() {
     try {
       const response = await api.get<ApiEnvelope<SimpleSetup>>('/admin/simple');
       setSetup(response.data.data);
-      if (response.data.data.event && (!hasInitializedStructure.current || !isBackground)) {
-        hasInitializedStructure.current = true;
-        const rc =
-          response.data.data.event.round_count ??
-          response.data.data.event.checkpoint_count ??
-          5;
-        const lc =
-          response.data.data.event.location_count ??
-          response.data.data.checkpoints.length ??
-          5;
-        setRoundCount(rc);
-        setLocationCount(lc);
+      if (response.data.data.event) {
+        setAllowMultipleLogins(Boolean(response.data.data.event.allow_multiple_logins));
+        if (!hasInitializedStructure.current || !isBackground) {
+          hasInitializedStructure.current = true;
+          const rc =
+            response.data.data.event.round_count ??
+            response.data.data.event.checkpoint_count ??
+            5;
+          const lc =
+            response.data.data.event.location_count ??
+            response.data.data.checkpoints.length ??
+            5;
+          setRoundCount(rc);
+          setLocationCount(lc);
+        }
       }
       if (response.data.data.teams.length && !selectedRouteTeamId) {
         setSelectedRouteTeamId(response.data.data.teams[0]?.id ?? '');
@@ -266,6 +272,26 @@ export function AdminPage() {
       if (!isBackground) {
         setError(cause instanceof ApiError ? cause.message : 'Could not load setup.');
       }
+    }
+  }
+
+  async function toggleAllowMultipleLogins(enable: boolean) {
+    setSavingLoginPolicy(true);
+    setError('');
+    setNotice('');
+    try {
+      await api.patch('/admin/simple/login-policy', { allowMultipleLogins: enable });
+      setAllowMultipleLogins(enable);
+      setNotice(
+        enable
+          ? 'Multiple logins enabled: all team members can log in simultaneously.'
+          : 'Multiple logins disabled: only one active player per team allowed.',
+      );
+      await load(true);
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'Could not update login policy.');
+    } finally {
+      setSavingLoginPolicy(false);
     }
   }
 
@@ -764,6 +790,20 @@ export function AdminPage() {
           >
             <TimerReset className="mr-1.5 text-amber-300" size={16} /> Retry Cooldown
           </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className={cn(
+              'min-h-10 text-xs bg-slate-800/80 hover:bg-slate-700 transition',
+              allowMultipleLogins && 'text-cyan-300 border-cyan-500/40 bg-cyan-950/20',
+            )}
+            disabled={savingLoginPolicy || !setup.event}
+            onClick={() => void toggleAllowMultipleLogins(!allowMultipleLogins)}
+            title="Toggle between single player or multiple simultaneous player logins per team"
+          >
+            <Users className={cn('mr-1.5', allowMultipleLogins ? 'text-cyan-300' : 'text-slate-400')} size={16} />
+            <span>Multiple Logins: <strong>{allowMultipleLogins ? 'ON' : 'OFF'}</strong></span>
+          </Button>
           {setup.event ? (
             <>
               <Button
@@ -854,18 +894,52 @@ export function AdminPage() {
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Track currently logged-in team members across all teams. Only one active player per team allowed.
+                {allowMultipleLogins
+                  ? 'Multiple logins enabled: all team members can be online simultaneously.'
+                  : 'Single player login: only one active player per team allowed (takeover required).'}
               </p>
             </div>
           </div>
-          <Button
-            type="button"
-            variant="secondary"
-            className="min-h-9 px-3 text-xs"
-            onClick={() => void load()}
-          >
-            <RotateCcw className="mr-1.5" size={13} /> Refresh Logins
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3.5 py-1.5">
+              <div className="text-right">
+                <p className="text-xs font-bold text-slate-200">
+                  {allowMultipleLogins ? 'Multiple Logins Allowed' : 'Single Player Login'}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {allowMultipleLogins ? 'All teammates can login' : '1 login per team'}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={allowMultipleLogins}
+                aria-label="Toggle multiple logins per team"
+                disabled={savingLoginPolicy || !setup.event}
+                onClick={() => void toggleAllowMultipleLogins(!allowMultipleLogins)}
+                className={cn(
+                  'relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:cursor-not-allowed disabled:opacity-50',
+                  allowMultipleLogins ? 'bg-cyan-500' : 'bg-slate-700',
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out',
+                    allowMultipleLogins ? 'translate-x-5' : 'translate-x-0',
+                  )}
+                />
+              </button>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-9 px-3 text-xs"
+              onClick={() => void load()}
+            >
+              <RotateCcw className="mr-1.5" size={13} /> Refresh Logins
+            </Button>
+          </div>
         </div>
 
         {setup.activeSessions && setup.activeSessions.length > 0 ? (
