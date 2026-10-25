@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   ArrowRight,
   Check,
@@ -51,6 +51,7 @@ import { api, ApiError } from '@/services/api-client';
 import { huntApi } from '@/services/hunt-api';
 import { useAuthStore } from '@/stores/auth.store';
 import type { ApiEnvelope } from '@/types/api';
+import { cn } from '@/lib/utils';
 
 export interface ActiveSession {
   sessionId: string;
@@ -147,6 +148,31 @@ export function AdminPage() {
   const [roundDifficultiesOpen, setRoundDifficultiesOpen] = useState(false);
   const [cooldownOpen, setCooldownOpen] = useState(false);
   const [selectedCheckpointForDifficulty, setSelectedCheckpointForDifficulty] = useState<string | null>(null);
+  const [unlockedLogoutIds, setUnlockedLogoutIds] = useState<Record<string, boolean>>({});
+  const clickTrackerRef = useRef<Record<string, { count: number; timer: ReturnType<typeof setTimeout> }>>({});
+
+  function handleTripleClickUnlock(id: string, e?: React.MouseEvent) {
+    if (unlockedLogoutIds[id]) return;
+
+    if (e && e.detail >= 3) {
+      setUnlockedLogoutIds((prev) => ({ ...prev, [id]: true }));
+      return;
+    }
+
+    const current = clickTrackerRef.current[id] || { count: 0, timer: null as any };
+    if (current.timer) clearTimeout(current.timer);
+
+    const newCount = current.count + 1;
+    if (newCount >= 3) {
+      setUnlockedLogoutIds((prev) => ({ ...prev, [id]: true }));
+      delete clickTrackerRef.current[id];
+    } else {
+      const timer = setTimeout(() => {
+        delete clickTrackerRef.current[id];
+      }, 700);
+      clickTrackerRef.current[id] = { count: newCount, timer };
+    }
+  }
 
   const allParticipants = useMemo(() => {
     return setup.teams.flatMap((team) =>
@@ -337,6 +363,11 @@ export function AdminPage() {
     try {
       await api.post(`/admin/participants/${participantId}/logout`);
       setNotice(`Logged out ${displayName}.`);
+      setUnlockedLogoutIds((prev) => {
+        const next = { ...prev };
+        delete next[participantId];
+        return next;
+      });
       await load();
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Failed to log out participant.');
@@ -788,44 +819,62 @@ export function AdminPage() {
 
         {setup.activeSessions && setup.activeSessions.length > 0 ? (
           <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {setup.activeSessions.map((session) => (
-              <div
-                key={session.sessionId}
-                className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/80 p-3"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-2 w-2 shrink-0">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                    </span>
-                    <p className="truncate font-bold text-slate-100 text-sm">{session.displayName}</p>
-                    <span className="font-mono text-xs text-cyan-300">({session.memberCode})</span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-400 truncate">
-                    Team: <strong className="text-slate-300">{session.teamName}</strong> ({session.teamCode})
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    Logged in:{' '}
-                    {new Date(session.loggedInAt).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    })}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="danger"
-                  className="min-h-8 px-2.5 text-xs shrink-0"
-                  disabled={busy === `logout-${session.participantId}`}
-                  onClick={() => void logoutParticipant(session.participantId, session.displayName)}
+            {setup.activeSessions.map((session) => {
+              const isUnlocked = Boolean(
+                unlockedLogoutIds[session.sessionId] ||
+                unlockedLogoutIds[session.participantId],
+              );
+              return (
+                <div
+                  key={session.sessionId}
+                  onClick={(e) => handleTripleClickUnlock(session.sessionId, e)}
+                  className={cn(
+                    'flex items-center justify-between gap-3 rounded-xl border bg-slate-950/80 p-3 transition select-none',
+                    isUnlocked
+                      ? 'border-rose-500/50 bg-rose-950/20 ring-1 ring-rose-500/30'
+                      : 'border-slate-800 hover:border-slate-700 cursor-pointer',
+                  )}
+                  title={isUnlocked ? undefined : 'Triple-click to reveal force logout button'}
                 >
-                  <LogOut className="mr-1" size={12} />
-                  {busy === `logout-${session.participantId}` ? '…' : 'Log Out'}
-                </Button>
-              </div>
-            ))}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                      </span>
+                      <p className="truncate font-bold text-slate-100 text-sm">{session.displayName}</p>
+                      <span className="font-mono text-xs text-cyan-300">({session.memberCode})</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400 truncate">
+                      Team: <strong className="text-slate-300">{session.teamName}</strong> ({session.teamCode})
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Logged in:{' '}
+                      {new Date(session.loggedInAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
+                    </p>
+                  </div>
+                  {isUnlocked ? (
+                    <Button
+                      type="button"
+                      variant="danger"
+                      className="min-h-8 px-2.5 text-xs shrink-0 animate-in fade-in zoom-in-95 duration-150"
+                      disabled={busy === `logout-${session.participantId}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void logoutParticipant(session.participantId, session.displayName);
+                      }}
+                    >
+                      <LogOut className="mr-1" size={12} />
+                      {busy === `logout-${session.participantId}` ? '…' : 'Log Out'}
+                    </Button>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="mt-3 text-xs text-slate-500">No participants are currently logged in.</p>
@@ -1383,39 +1432,49 @@ export function AdminPage() {
               </p>
               {filteredParticipants.length ? (
                 <div className="mt-3 grid gap-2">
-                  {filteredParticipants.map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-100">{p.displayName}</span>
-                          <span className="font-mono text-xs text-cyan-300">{p.memberCode}</span>
-                          {p.isLoggedIn ? (
-                            <span className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              Online
-                            </span>
-                          ) : null}
+                  {filteredParticipants.map((p) => {
+                    const isUnlocked = Boolean(unlockedLogoutIds[p.id]);
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={(e) => handleTripleClickUnlock(p.id, e)}
+                        className={cn(
+                          'flex items-center justify-between gap-3 rounded-xl border bg-slate-900/60 p-3 transition select-none',
+                          isUnlocked ? 'border-rose-500/50 bg-rose-950/20' : 'border-slate-800 cursor-pointer',
+                        )}
+                        title={p.isLoggedIn && !isUnlocked ? 'Triple-click to reveal force logout' : undefined}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-100">{p.displayName}</span>
+                            <span className="font-mono text-xs text-cyan-300">{p.memberCode}</span>
+                            {p.isLoggedIn ? (
+                              <span className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Online
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="text-xs text-slate-400">
+                            Team: {p.teamName} ({p.teamCode})
+                          </p>
                         </div>
-                        <p className="text-xs text-slate-400">
-                          Team: {p.teamName} ({p.teamCode})
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {p.isLoggedIn ? (
-                          <Button
-                            type="button"
-                            variant="danger"
-                            className="min-h-9 px-3 text-xs"
-                            disabled={busy === `logout-${p.id}`}
-                            onClick={() => void logoutParticipant(p.id, p.displayName)}
-                          >
-                            <LogOut className="mr-1.5" size={13} />
-                            {busy === `logout-${p.id}` ? '…' : 'Log Out'}
-                          </Button>
-                        ) : null}
+                        <div className="flex items-center gap-1.5">
+                          {p.isLoggedIn && isUnlocked ? (
+                            <Button
+                              type="button"
+                              variant="danger"
+                              className="min-h-9 px-3 text-xs animate-in fade-in zoom-in-95 duration-150"
+                              disabled={busy === `logout-${p.id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void logoutParticipant(p.id, p.displayName);
+                              }}
+                            >
+                              <LogOut className="mr-1.5" size={13} />
+                              {busy === `logout-${p.id}` ? '…' : 'Log Out'}
+                            </Button>
+                          ) : null}
                         <Button
                           type="button"
                           variant="secondary"
@@ -1434,7 +1493,8 @@ export function AdminPage() {
                         </Button>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               ) : (
                 <p className="mt-2 text-xs text-slate-500">
@@ -1540,38 +1600,48 @@ export function AdminPage() {
                     </div>
                   )}
                   <ul className="mt-3 grid gap-1.5 text-sm text-slate-400">
-                    {team.participants.map((member) => (
-                      <li
-                        key={member.id}
-                        className="flex items-center justify-between gap-2 rounded-xl border border-slate-800/80 bg-slate-950/40 px-3 py-2"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate font-semibold text-slate-200">
-                              {member.displayName}
-                            </p>
-                            {member.isLoggedIn ? (
-                              <span className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                Online
-                              </span>
-                            ) : null}
+                    {team.participants.map((member) => {
+                      const isUnlocked = Boolean(unlockedLogoutIds[member.id]);
+                      return (
+                        <li
+                          key={member.id}
+                          onClick={(e) => handleTripleClickUnlock(member.id, e)}
+                          className={cn(
+                            'flex items-center justify-between gap-2 rounded-xl border bg-slate-950/40 px-3 py-2 transition select-none',
+                            isUnlocked ? 'border-rose-500/40 bg-rose-950/20' : 'border-slate-800/80 cursor-pointer',
+                          )}
+                          title={member.isLoggedIn && !isUnlocked ? 'Triple-click to reveal force logout' : undefined}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate font-semibold text-slate-200">
+                                {member.displayName}
+                              </p>
+                              {member.isLoggedIn ? (
+                                <span className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                  Online
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="font-mono text-xs text-cyan-300">{member.memberCode}</p>
                           </div>
-                          <p className="font-mono text-xs text-cyan-300">{member.memberCode}</p>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {member.isLoggedIn ? (
-                            <button
-                              type="button"
-                              className="flex shrink-0 items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20"
-                              disabled={busy === `logout-${member.id}`}
-                              onClick={() => void logoutParticipant(member.id, member.displayName)}
-                              title={`Log out ${member.displayName}`}
-                            >
-                              <LogOut size={12} />
-                              <span>{busy === `logout-${member.id}` ? '…' : 'Log Out'}</span>
-                            </button>
-                          ) : null}
+                          <div className="flex items-center gap-1.5">
+                            {member.isLoggedIn && isUnlocked ? (
+                              <button
+                                type="button"
+                                className="flex shrink-0 items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20 animate-in fade-in zoom-in-95 duration-150"
+                                disabled={busy === `logout-${member.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void logoutParticipant(member.id, member.displayName);
+                                }}
+                                title={`Log out ${member.displayName}`}
+                              >
+                                <LogOut size={12} />
+                                <span>{busy === `logout-${member.id}` ? '…' : 'Log Out'}</span>
+                              </button>
+                            ) : null}
                           <button
                             type="button"
                             className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-300 transition hover:border-cyan-300 hover:text-cyan-300"
@@ -1590,7 +1660,8 @@ export function AdminPage() {
                           </button>
                         </div>
                       </li>
-                    ))}
+                    );
+                  })}
                   </ul>
                 </div>
               </Panel>
