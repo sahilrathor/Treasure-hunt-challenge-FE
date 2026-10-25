@@ -149,9 +149,16 @@ export function RoundGameMappingModal({
 
         {/* Toolbar */}
         <div className="flex items-center justify-between px-5 py-2.5 border-b border-slate-800 bg-slate-900 text-xs">
-          <span className="font-bold text-slate-400">
-            {checkpoints.length} Rounds Configured
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-400">
+              {checkpoints.length} Rounds Configured
+            </span>
+            {games.length > 0 && (
+              <span className="rounded-md bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium text-cyan-400 border border-cyan-500/20">
+                {games.length} games available in dropdowns
+              </span>
+            )}
+          </div>
           <Button
             type="button"
             variant="secondary"
