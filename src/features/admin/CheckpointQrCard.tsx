@@ -9,7 +9,6 @@ import {
   EyeOff,
   FileText,
   QrCode,
-  RefreshCw,
 } from 'lucide-react';
 
 import { Button } from '@/components/atoms/Button';
@@ -217,8 +216,8 @@ export function CheckpointQrCard({
             </button>
           </div>
 
-          <div className="mt-2.5 grid grid-cols-2 gap-2">
-            <Button asChild>
+          <div className="mt-2.5">
+            <Button asChild className="w-full">
               <a
                 href={generated.imageUrl}
                 download={
@@ -227,9 +226,10 @@ export function CheckpointQrCard({
                     : `checkpoint-${checkpoint.sequence}-qr.png`
                 }
               >
-                <Download className="mr-1.5" size={15} /> Download
+                <Download className="mr-1.5" size={15} /> Download QR Image
               </a>
             </Button>
+            {/* Regenerate QR button commented out to prevent invalidating printed QR codes:
             <Button
               type="button"
               variant="secondary"
@@ -238,6 +238,7 @@ export function CheckpointQrCard({
             >
               <RefreshCw className="mr-1.5" size={15} /> Refresh
             </Button>
+            */}
           </div>
         </div>
       ) : (

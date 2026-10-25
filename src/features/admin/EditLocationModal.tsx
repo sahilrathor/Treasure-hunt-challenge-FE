@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { AlertCircle, CheckCircle2, Eye, EyeOff, MapPin, RefreshCw, Save, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, EyeOff, MapPin, Save, X } from 'lucide-react';
 
 import { Button } from '@/components/atoms/Button';
 import { Field } from '@/components/atoms/Field';
@@ -76,6 +76,7 @@ export function EditLocationModal({
     }
   }
 
+  /* handleRotateQr commented out to avoid invalidating printed location QRs:
   async function handleRotateQr() {
     if (
       !window.confirm(
@@ -100,6 +101,7 @@ export function EditLocationModal({
       setBusy(false);
     }
   }
+  */
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
@@ -209,7 +211,8 @@ export function EditLocationModal({
             </div>
           </label>
 
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-3 pt-2 border-t border-slate-800">
+            {/* Regenerate/replace QR code button commented out to prevent invalidating printed QR codes:
             <Button
               type="button"
               variant="secondary"
@@ -219,6 +222,7 @@ export function EditLocationModal({
             >
               <RefreshCw className="mr-1.5" size={14} /> Replace QR Code
             </Button>
+            */}
             <div className="flex items-center gap-2">
               <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
                 Cancel

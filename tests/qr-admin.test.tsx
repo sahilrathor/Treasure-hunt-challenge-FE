@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 
 import { CheckpointQrCard } from '@/features/admin/CheckpointQrCard';
+import { generateLocationQrsPdf } from '@/features/admin/qr-pdf-export';
 
 const checkpoint = { id: 'checkpoint-1', label: 'Library', sequence: 1 };
 
@@ -123,5 +124,25 @@ it('displays the scan URL and copy button when QR is generated', () => {
 
   expect(screen.getByText('http://localhost:5173/scan?token=secret')).toBeVisible();
   expect(screen.getByTitle(/copy scan link/i)).toBeVisible();
+  expect(screen.queryByRole('button', { name: /refresh/i })).not.toBeInTheDocument();
+});
+
+it('generates a PDF with 8 QRs per page and location names below QR', async () => {
+  const checkpoints = Array.from({ length: 9 }, (_, i) => ({
+    id: `cp-${i + 1}`,
+    code: `LOC-${i + 1}`,
+    label: `Location ${i + 1}`,
+    sequence: i + 1,
+    scanUrl: `https://hunt.test/scan?token=tok${i + 1}`,
+  }));
+
+  const doc = await generateLocationQrsPdf({
+    eventName: 'Keshav Techfest Hunt',
+    checkpoints,
+  });
+
+  expect(doc).toBeDefined();
+  // 9 checkpoints at 8 per page yields 2 pages
+  expect(doc.getNumberOfPages()).toBe(2);
 });
 

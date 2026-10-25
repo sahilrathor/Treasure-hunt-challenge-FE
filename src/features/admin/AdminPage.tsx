@@ -9,6 +9,7 @@ import {
   Copy,
   Dices,
   ExternalLink,
+  FileDown,
   Gamepad2,
   Gauge,
   Key,
@@ -33,6 +34,7 @@ import {
   type CheckpointSummary,
   type GeneratedCheckpointQr,
 } from './CheckpointQrCard';
+import { generateLocationQrsPdf } from './qr-pdf-export';
 import {
   ChangePasswordModal,
   type ParticipantTarget,
@@ -611,6 +613,43 @@ export function AdminPage() {
     }
   }
 
+  async function downloadAllQrsPdf() {
+    if (!setup.checkpoints.length) return;
+    setBusy('pdf');
+    setError('');
+    try {
+      const doc = await generateLocationQrsPdf({
+        eventName: setup.event?.name || 'College Fest Hunt',
+        checkpoints: setup.checkpoints.map((cp) => ({
+          ...cp,
+          scanUrl: checkpointQrs[cp.id]?.scanUrl || cp.scanUrl,
+        })),
+        getScanUrl: async (cp) => {
+          let scanUrl = checkpointQrs[cp.id]?.scanUrl || cp.scanUrl;
+          if (!scanUrl) {
+            const response = await api.patch<ApiEnvelope<{ scanUrl: string }>>(
+              `/admin/checkpoints/${cp.id}`,
+              { rotateToken: true },
+            );
+            scanUrl = response.data.data.scanUrl;
+          }
+          return scanUrl;
+        },
+      });
+
+      const cleanName = (setup.event?.name || 'hunt')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+      doc.save(`${cleanName || 'locations'}-qrs.pdf`);
+      setNotice(`Downloaded printable PDF for all ${setup.checkpoints.length} location QR codes!`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not generate location QRs PDF.');
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function addTeam(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!setup.event) return;
@@ -1178,6 +1217,16 @@ export function AdminPage() {
                 >
                   <QrCode className="mr-2" size={18} />
                   {busy === 'all-qrs' ? 'Generating…' : 'Generate all QRs'}
+                </Button>
+                <Button
+                  type="button"
+                  className="text-xs bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold"
+                  disabled={!setup.checkpoints.length || busy === 'pdf'}
+                  onClick={() => void downloadAllQrsPdf()}
+                  title="Download a printable PDF of all location QRs with location names below each QR"
+                >
+                  <FileDown className="mr-1.5" size={15} />
+                  {busy === 'pdf' ? 'Generating PDF…' : 'Download All QRs PDF'}
                 </Button>
               </div>
             </div>
