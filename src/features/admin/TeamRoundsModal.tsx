@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   AlertCircle,
   Award,
@@ -8,6 +8,7 @@ import {
   Hourglass,
   RotateCcw,
   User,
+  Users,
   X,
   XCircle,
 } from 'lucide-react';
@@ -61,6 +62,7 @@ function formatDuration(ms: number | null) {
 
 export function TeamRoundsModal({ teamId, onClose }: Props) {
   const [data, setData] = useState<{ team: TeamData; rounds: RoundInfo[] } | null>(null);
+  const [viewMode, setViewMode] = useState<'rounds' | 'players'>('rounds');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -86,6 +88,61 @@ export function TeamRoundsModal({ teamId, onClose }: Props) {
     setNotice('');
     void loadTeam(teamId);
   }, [teamId, loadTeam]);
+
+  const playerStats = useMemo(() => {
+    if (!data?.rounds) return [];
+    const map = new Map<
+      string,
+      {
+        displayName: string;
+        memberCode: string;
+        totalDurationMs: number;
+        clearedCount: number;
+        attemptCount: number;
+        rounds: Array<{
+          round: number;
+          gameName: string;
+          checkpointLabel: string;
+          status: string;
+          durationMs: number | null;
+          attemptNumber: number;
+        }>;
+      }
+    >();
+
+    for (const r of data.rounds) {
+      for (const att of r.attempts) {
+        let entry = map.get(att.member_code);
+        if (!entry) {
+          entry = {
+            displayName: att.display_name,
+            memberCode: att.member_code,
+            totalDurationMs: 0,
+            clearedCount: 0,
+            attemptCount: 0,
+            rounds: [],
+          };
+          map.set(att.member_code, entry);
+        }
+        entry.attemptCount += 1;
+        if (att.duration_ms) {
+          entry.totalDurationMs += att.duration_ms;
+        }
+        if (att.status === 'passed') {
+          entry.clearedCount += 1;
+        }
+        entry.rounds.push({
+          round: r.round,
+          gameName: r.game_name || 'Mini Game',
+          checkpointLabel: r.checkpoint_label,
+          status: att.status,
+          durationMs: att.duration_ms,
+          attemptNumber: att.attempt_number,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [data?.rounds]);
 
   async function resetAttempts(assignmentId: string) {
     if (!teamId) return;
@@ -197,143 +254,276 @@ export function TeamRoundsModal({ teamId, onClose }: Props) {
               </div>
             </div>
 
-            {/* Rounds List Scrollable */}
-            <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
-              {data.rounds.map((round) => {
-                const passedAttempt = round.attempts.find((a) => a.status === 'passed');
-                const isPassed = round.assignment_status === 'PASSED';
-                const isAssigned = round.assignment_status === 'ASSIGNED';
+            {/* View Mode Switcher */}
+            <div className="mt-3 flex items-center justify-between">
+              <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('rounds')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition',
+                    viewMode === 'rounds'
+                      ? 'bg-cyan-400 text-slate-950 shadow'
+                      : 'text-slate-400 hover:text-slate-200',
+                  )}
+                >
+                  <Gamepad2 size={13} />
+                  By Round ({data.rounds.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('players')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition',
+                    viewMode === 'players'
+                      ? 'bg-cyan-400 text-slate-950 shadow'
+                      : 'text-slate-400 hover:text-slate-200',
+                  )}
+                >
+                  <Users size={13} />
+                  By Player ({playerStats.length})
+                </button>
+              </div>
+              <span className="text-[11px] text-slate-400 hidden sm:inline">
+                {viewMode === 'rounds'
+                  ? 'Sequential round progression and attempts'
+                  : 'Individual member game timings per round'}
+              </span>
+            </div>
 
-                return (
-                  <div
-                    key={round.round}
-                    className={cn(
-                      'rounded-2xl border p-4 transition',
-                      isPassed && 'border-emerald-500/30 bg-emerald-950/10',
-                      isAssigned && 'border-cyan-500/30 bg-cyan-950/10',
-                      !isPassed && !isAssigned && 'border-slate-800/80 bg-slate-950/40 opacity-70',
-                    )}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="grid size-7 place-items-center rounded-lg bg-slate-800 font-mono text-xs font-black text-slate-200">
-                          R{round.round}
-                        </span>
-                        <div>
-                          <p className="font-black text-slate-100">{round.checkpoint_label}</p>
-                          <p className="text-xs text-slate-400">
-                            {round.game_name ? `Game: ${round.game_name}` : 'Not yet unlocked'}
-                          </p>
+            {viewMode === 'players' ? (
+              <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
+                {playerStats.length > 0 ? (
+                  playerStats.map((player) => (
+                    <div
+                      key={player.memberCode}
+                      className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 transition"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="grid size-9 place-items-center rounded-xl bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-400/20">
+                            <User size={18} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-black text-slate-100">{player.displayName}</p>
+                              <span className="font-mono text-xs font-bold text-cyan-300">
+                                {player.memberCode}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400">
+                              Cleared {player.clearedCount} round{player.clearedCount === 1 ? '' : 's'} · {player.attemptCount} attempt{player.attemptCount === 1 ? '' : 's'} played
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 rounded-xl bg-slate-900 border border-slate-800 px-3 py-1.5 text-xs">
+                          <Clock size={14} className="text-cyan-400" />
+                          <span className="text-slate-400 font-medium">Total Game Time:</span>
+                          <strong className="font-mono text-cyan-300 font-bold">
+                            {formatDuration(player.totalDurationMs)}
+                          </strong>
                         </div>
                       </div>
 
-                      <div>
-                        {isPassed ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-bold text-emerald-300">
-                            <CheckCircle2 size={13} /> Cleared
-                          </span>
-                        ) : isAssigned ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-xs font-bold text-cyan-300">
-                            <Hourglass size={13} /> Active
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-800 px-2.5 py-0.5 text-xs font-bold text-slate-500">
-                            Locked
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Winning player highlight */}
-                    {passedAttempt ? (
-                      <div className="mt-2.5 flex items-center gap-2 rounded-xl bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200">
-                        <Award size={14} className="text-amber-300 shrink-0" />
-                        <span>
-                          Cleared by <strong className="font-bold">{passedAttempt.display_name}</strong> (
-                          <span className="font-mono text-cyan-300">{passedAttempt.member_code}</span>) in{' '}
-                          <strong className="font-mono">{formatDuration(passedAttempt.duration_ms)}</strong> on attempt{' '}
-                          {passedAttempt.attempt_number}
-                        </span>
-                      </div>
-                    ) : null}
-
-                    {/* Attempts details list */}
-                    {round.attempts.length > 0 ? (
-                      <div className="mt-3 space-y-1.5 border-t border-slate-800/80 pt-2.5">
+                      {/* Rounds breakdown for this player */}
+                      <div className="mt-3 space-y-1.5">
                         <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                          Attempts played ({round.attempts.length})
+                          Rounds Played ({player.rounds.length})
                         </p>
                         <div className="grid gap-1.5">
-                          {round.attempts.map((att) => (
+                          {player.rounds.map((pr, idx) => (
                             <div
-                              key={att.id}
-                              className="flex items-center justify-between rounded-xl bg-slate-950/80 px-3 py-1.5 text-xs"
+                              key={idx}
+                              className="flex items-center justify-between rounded-xl bg-slate-900/60 px-3 py-2 text-xs border border-slate-800/60"
                             >
                               <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-slate-400">
-                                  #{att.attempt_number}
+                                <span className="font-mono font-bold text-cyan-300 bg-slate-800 px-1.5 py-0.5 rounded text-[11px]">
+                                  R{pr.round}
                                 </span>
-                                <User size={13} className="text-slate-500" />
-                                <span className="font-medium text-slate-200">
-                                  {att.display_name}
+                                <span className="font-semibold text-slate-200">
+                                  {pr.gameName}
                                 </span>
-                                <span className="font-mono text-[11px] text-cyan-300">
-                                  {att.member_code}
+                                <span className="text-slate-500 hidden sm:inline">
+                                  ({pr.checkpointLabel})
+                                </span>
+                                <span className="text-slate-400 text-[11px]">
+                                  att #{pr.attemptNumber}
                                 </span>
                               </div>
 
                               <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-1 font-mono text-slate-400">
+                                <div className="flex items-center gap-1 font-mono text-slate-300 font-semibold">
                                   <Clock size={12} className="text-slate-500" />
-                                  <span>{formatDuration(att.duration_ms)}</span>
+                                  <span>{formatDuration(pr.durationMs)}</span>
                                 </div>
                                 <span
                                   className={cn(
                                     'inline-flex items-center gap-1 font-bold uppercase text-[11px]',
-                                    att.status === 'passed' && 'text-emerald-400',
-                                    att.status === 'failed' && 'text-rose-400',
-                                    att.status === 'in_progress' && 'text-amber-400',
+                                    pr.status === 'passed' && 'text-emerald-400',
+                                    pr.status === 'failed' && 'text-rose-400',
+                                    pr.status === 'in_progress' && 'text-amber-400',
                                   )}
                                 >
-                                  {att.status === 'passed' ? (
+                                  {pr.status === 'passed' ? (
                                     <CheckCircle2 size={12} />
                                   ) : (
                                     <XCircle size={12} />
                                   )}
-                                  {att.status}
+                                  {pr.status}
                                 </span>
                               </div>
                             </div>
                           ))}
                         </div>
                       </div>
-                    ) : isAssigned ? (
-                      <p className="mt-2 text-xs italic text-slate-500">
-                        Assigned. No attempts submitted yet.
-                      </p>
-                    ) : null}
+                    </div>
+                  ))
+                ) : (
+                  <p className="py-8 text-center text-xs italic text-slate-500">
+                    No attempts recorded yet for any player on this team.
+                  </p>
+                )}
+              </div>
+            ) : (
+              /* Rounds List Scrollable */
+              <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
+                {data.rounds.map((round) => {
+                  const passedAttempt = round.attempts.find((a) => a.status === 'passed');
+                  const isPassed = round.assignment_status === 'PASSED';
+                  const isAssigned = round.assignment_status === 'ASSIGNED';
 
-                    {isAssigned && round.assignment_id ? (
-                      <div className="mt-3 flex justify-end border-t border-slate-800/80 pt-3">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="min-h-9 px-3 text-xs"
-                          disabled={resetting === round.assignment_id}
-                          onClick={() => void resetAttempts(round.assignment_id!)}
-                        >
-                          <RotateCcw
-                            size={14}
-                            className={`mr-1.5 ${resetting === round.assignment_id ? 'animate-spin' : ''}`}
-                          />
-                          {resetting === round.assignment_id ? 'Resetting…' : 'Reset Attempts'}
-                        </Button>
+                  return (
+                    <div
+                      key={round.round}
+                      className={cn(
+                        'rounded-2xl border p-4 transition',
+                        isPassed && 'border-emerald-500/30 bg-emerald-950/10',
+                        isAssigned && 'border-cyan-500/30 bg-cyan-950/10',
+                        !isPassed && !isAssigned && 'border-slate-800/80 bg-slate-950/40 opacity-70',
+                      )}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="grid size-7 place-items-center rounded-lg bg-slate-800 font-mono text-xs font-black text-slate-200">
+                            R{round.round}
+                          </span>
+                          <div>
+                            <p className="font-black text-slate-100">{round.checkpoint_label}</p>
+                            <p className="text-xs text-slate-400">
+                              {round.game_name ? `Game: ${round.game_name}` : 'Not yet unlocked'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div>
+                          {isPassed ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-bold text-emerald-300">
+                              <CheckCircle2 size={13} /> Cleared
+                            </span>
+                          ) : isAssigned ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-xs font-bold text-cyan-300">
+                              <Hourglass size={13} /> Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-800 px-2.5 py-0.5 text-xs font-bold text-slate-500">
+                              Locked
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
+
+                      {/* Winning player highlight */}
+                      {passedAttempt ? (
+                        <div className="mt-2.5 flex items-center gap-2 rounded-xl bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200">
+                          <Award size={14} className="text-amber-300 shrink-0" />
+                          <span>
+                            Cleared by <strong className="font-bold">{passedAttempt.display_name}</strong> (
+                            <span className="font-mono text-cyan-300">{passedAttempt.member_code}</span>) in{' '}
+                            <strong className="font-mono">{formatDuration(passedAttempt.duration_ms)}</strong> on attempt{' '}
+                            {passedAttempt.attempt_number}
+                          </span>
+                        </div>
+                      ) : null}
+
+                      {/* Attempts details list */}
+                      {round.attempts.length > 0 ? (
+                        <div className="mt-3 space-y-1.5 border-t border-slate-800/80 pt-2.5">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            Attempts played ({round.attempts.length})
+                          </p>
+                          <div className="grid gap-1.5">
+                            {round.attempts.map((att) => (
+                              <div
+                                key={att.id}
+                                className="flex items-center justify-between rounded-xl bg-slate-950/80 px-3 py-1.5 text-xs"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-slate-400">
+                                    #{att.attempt_number}
+                                  </span>
+                                  <User size={13} className="text-slate-500" />
+                                  <span className="font-medium text-slate-200">
+                                    {att.display_name}
+                                  </span>
+                                  <span className="font-mono text-[11px] text-cyan-300">
+                                    {att.member_code}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-1 font-mono text-slate-400">
+                                    <Clock size={12} className="text-slate-500" />
+                                    <span>{formatDuration(att.duration_ms)}</span>
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      'inline-flex items-center gap-1 font-bold uppercase text-[11px]',
+                                      att.status === 'passed' && 'text-emerald-400',
+                                      att.status === 'failed' && 'text-rose-400',
+                                      att.status === 'in_progress' && 'text-amber-400',
+                                    )}
+                                  >
+                                    {att.status === 'passed' ? (
+                                      <CheckCircle2 size={12} />
+                                    ) : (
+                                      <XCircle size={12} />
+                                    )}
+                                    {att.status}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : isAssigned ? (
+                        <p className="mt-2 text-xs italic text-slate-500">
+                          Assigned. No attempts submitted yet.
+                        </p>
+                      ) : null}
+
+                      {isAssigned && round.assignment_id ? (
+                        <div className="mt-3 flex justify-end border-t border-slate-800/80 pt-3">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="min-h-9 px-3 text-xs"
+                            disabled={resetting === round.assignment_id}
+                            onClick={() => void resetAttempts(round.assignment_id!)}
+                          >
+                            <RotateCcw
+                              size={14}
+                              className={`mr-1.5 ${resetting === round.assignment_id ? 'animate-spin' : ''}`}
+                            />
+                            {resetting === round.assignment_id ? 'Resetting…' : 'Reset Attempts'}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="mt-4 flex justify-end">
               <Button type="button" variant="secondary" onClick={onClose}>

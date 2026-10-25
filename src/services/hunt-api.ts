@@ -48,7 +48,18 @@ export const huntApi = {
       )
     ).data.data;
   },
-  async submitAttempt(attemptId: string, result: unknown) {
+  async submitAttempt(
+    attemptId: string,
+    result: unknown,
+    options?: {
+      clientDurationMs?: number;
+      completedAt?: string;
+      idempotencyKey?: string;
+    },
+  ) {
+    const headers = options?.idempotencyKey
+      ? { 'Idempotency-Key': options.idempotencyKey }
+      : idempotencyHeaders();
     return (
       await api.post<
         ApiEnvelope<{
@@ -58,7 +69,15 @@ export const huntApi = {
           clueUnlocked: boolean;
           retryAt?: string | null;
         }>
-      >(`/attempts/${attemptId}/submit`, { result }, { headers: idempotencyHeaders() })
+      >(
+        `/attempts/${attemptId}/submit`,
+        {
+          result,
+          clientDurationMs: options?.clientDurationMs,
+          completedAt: options?.completedAt,
+        },
+        { headers },
+      )
     ).data.data;
   },
   async clue() {

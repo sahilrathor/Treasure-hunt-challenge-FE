@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
-import { Clock } from 'lucide-react';
+import { CheckCircle2, Clock } from 'lucide-react';
 
 import { Button } from '@/components/atoms/Button';
 import { ApiError } from '@/services/api-client';
 import { huntApi } from '@/services/hunt-api';
+import { getPendingSubmissions, syncAllPendingSubmissions } from '@/services/offline-sync';
 import { useAuthStore } from '@/stores/auth.store';
 
 const INACTIVITY_TIMEOUT_MS = 60 * 1000; // 1 minute of continuous inactivity
@@ -165,6 +166,42 @@ function InactivityWatcher() {
   );
 }
 
+function OfflineSyncWatcher() {
+  const identity = useAuthStore((state) => state.identity);
+  const [syncedNotice, setSyncedNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!identity) return;
+
+    const checkAndSync = async () => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      const pending = getPendingSubmissions();
+      if (!pending.length) return;
+
+      const res = await syncAllPendingSubmissions();
+      if (res.synced > 0) {
+        setSyncedNotice(
+          `Synced ${res.synced} offline game completion${res.synced === 1 ? '' : 's'} with server!`,
+        );
+        setTimeout(() => setSyncedNotice(null), 5000);
+      }
+    };
+
+    void checkAndSync();
+    window.addEventListener('online', checkAndSync);
+    return () => window.removeEventListener('online', checkAndSync);
+  }, [identity]);
+
+  if (!syncedNotice) return null;
+
+  return (
+    <div className="fixed bottom-20 right-4 z-50 flex items-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-950/90 px-4 py-3 text-xs font-bold text-emerald-200 shadow-xl backdrop-blur animate-in fade-in slide-in-from-bottom-2">
+      <CheckCircle2 size={16} className="text-emerald-400" />
+      <span>{syncedNotice}</span>
+    </div>
+  );
+}
+
 export function SessionProvider() {
   const restore = useAuthStore((state) => state.restore);
   const initialized = useAuthStore((state) => state.initialized);
@@ -182,6 +219,7 @@ export function SessionProvider() {
   return (
     <>
       <InactivityWatcher />
+      <OfflineSyncWatcher />
       <Outlet />
     </>
   );

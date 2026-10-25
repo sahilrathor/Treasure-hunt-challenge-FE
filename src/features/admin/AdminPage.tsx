@@ -4,6 +4,7 @@ import {
   Check,
   CheckCircle2,
   Clipboard,
+  Clock,
   Compass,
   Dices,
   ExternalLink,
@@ -1570,10 +1571,11 @@ export function AdminPage() {
                         <Button
                           type="button"
                           variant="secondary"
-                          className="min-h-8 px-2.5 text-xs"
+                          className="min-h-8 px-2.5 text-xs text-cyan-300 hover:text-cyan-200 border-cyan-500/30"
                           onClick={() => setSelectedTeamRounds(team.id)}
+                          title="View round breakdown, player attempts, and exact game timings"
                         >
-                          View Rounds
+                          <Clock className="mr-1" size={13} /> Rounds & Timings
                         </Button>
                         <Button
                           type="button"

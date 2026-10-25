@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, RotateCw } from 'lucide-react';
+import { AlertTriangle, RotateCw, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/atoms/Button';
 import { Panel } from '@/components/atoms/Panel';
 import { ApiError } from '@/services/api-client';
 import { huntApi } from '@/services/hunt-api';
+import {
+  saveOfflineSubmission,
+  removeOfflineSubmission,
+  useOfflineQueue,
+} from '@/services/offline-sync';
 import type { Assignment } from '@/types/api';
+import { cn } from '@/lib/utils';
 import { gameRegistry, getGameInfo } from '../games/game-registry';
 import { GameShell } from '../games/shared/GameShell';
 import { CooldownCountdown } from '../games/shared/CooldownCountdown';
@@ -24,6 +30,27 @@ export function AssignmentPage() {
   const [busy, setBusy] = useState(false);
   const [reloading, setReloading] = useState(false);
   const [retryReady, setRetryReady] = useState(false);
+
+  const { pendingSubmission, isOnline, isSyncing, syncError, syncNow } = useOfflineQueue(
+    assignment?.id,
+    attempt?.id,
+  );
+
+  // If a pending submission is ready and connection comes online, auto-sync and record with server
+  useEffect(() => {
+    if (pendingSubmission && isOnline && !isSyncing && !busy && !outcome) {
+      void syncNow()
+        .then((res) => {
+          if (res) {
+            setOutcome(res);
+            setAttempt(null);
+          }
+        })
+        .catch(() => {
+          // Kept safely in local storage for retry
+        });
+    }
+  }, [pendingSubmission, isOnline, isSyncing, busy, outcome, syncNow]);
 
   useEffect(() => {
     if (id)
@@ -78,13 +105,59 @@ export function AssignmentPage() {
   }
 
   async function complete(result: unknown) {
-    if (!attempt) return;
+    if (!attempt || !assignment) return;
+    const completedAt = new Date().toISOString();
+    const clientDurationMs = Math.max(0, Date.now() - new Date(attempt.started_at).getTime());
+    const idempotencyKey =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `sub-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    // Store in localStorage immediately so duration & round completion are never lost even if offline
+    saveOfflineSubmission({
+      attemptId: attempt.id,
+      assignmentId: assignment.id,
+      result,
+      clientDurationMs,
+      completedAt,
+      idempotencyKey,
+      roundSequence: assignment.round,
+      gameName: assignment.gameName,
+      savedAt: Date.now(),
+    });
+
+    // If currently offline, skip network attempt and display offline pending sync card
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setAttempt(null);
+      return;
+    }
+
     setBusy(true);
+    setError('');
     try {
-      setOutcome(await huntApi.submitAttempt(attempt.id, result));
+      const res = await huntApi.submitAttempt(attempt.id, result, {
+        clientDurationMs,
+        completedAt,
+        idempotencyKey,
+      });
+      removeOfflineSubmission(attempt.id);
+      setOutcome(res);
       setAttempt(null);
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : 'Result was rejected.');
+      const isNetworkErr =
+        !navigator.onLine ||
+        (cause instanceof Error &&
+          (cause.message.toLowerCase().includes('network') ||
+            cause.message.toLowerCase().includes('fetch') ||
+            cause.message.toLowerCase().includes('offline')));
+
+      if (isNetworkErr) {
+        // Kept in localStorage; user will see the offline pending card and auto-sync on reconnect
+        setAttempt(null);
+      } else {
+        removeOfflineSubmission(attempt.id);
+        setError(cause instanceof ApiError ? cause.message : 'Result was rejected.');
+      }
     } finally {
       setBusy(false);
     }
@@ -137,6 +210,86 @@ export function AssignmentPage() {
           <RotateCw className={`mr-2 ${reloading ? 'animate-spin' : ''}`} size={18} />
           {reloading ? 'Reloading latest game…' : `Reload latest game for Round ${assignment.round}`}
         </Button>
+      </Panel>
+    );
+
+  if (pendingSubmission && !outcome)
+    return (
+      <Panel className="border-cyan-500/40 bg-slate-900/90 shadow-2xl">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-300">
+            <WifiOff size={14} /> Offline Mode · Saved Locally
+          </span>
+          <span className="font-mono text-xs text-slate-400">
+            Round {assignment.round} · {assignment.gameName}
+          </span>
+        </div>
+
+        <h1 className="mt-4 text-3xl sm:text-4xl font-black text-slate-100">
+          Round Completed!
+        </h1>
+        <p className="mt-2 text-sm text-slate-300">
+          Your game completion time has been securely saved in your browser storage. It will be recorded with the server automatically as soon as internet connection is restored.
+        </p>
+
+        <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950 p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Recorded Game Time
+            </span>
+            <span className="font-mono text-2xl font-black text-cyan-300">
+              {(pendingSubmission.clientDurationMs / 1000).toFixed(1)}s
+            </span>
+          </div>
+          <div className="border-t border-slate-800/80 pt-2 flex items-center justify-between text-xs text-slate-400">
+            <span>Completed at</span>
+            <span className="font-mono text-slate-300">
+              {new Date(pendingSubmission.completedAt).toLocaleTimeString()}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500 italic">
+            Exact game duration is locked in and will not be inflated by time spent offline.
+          </p>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2 text-xs">
+          {isOnline ? (
+            <span className="flex items-center gap-1.5 font-bold text-emerald-400">
+              <Wifi size={14} /> Back online! Syncing result with server…
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 font-medium text-amber-300">
+              <WifiOff size={14} /> Waiting for internet connection to record time…
+            </span>
+          )}
+        </div>
+
+        {syncError ? (
+          <p role="alert" className="mt-3 text-xs text-rose-300">
+            {syncError}
+          </p>
+        ) : null}
+
+        <div className="mt-6 flex flex-col sm:flex-row gap-3">
+          <Button
+            className="flex-1"
+            disabled={isSyncing}
+            onClick={async () => {
+              try {
+                const res = await syncNow();
+                if (res) {
+                  setOutcome(res);
+                  setAttempt(null);
+                }
+              } catch {
+                // error captured in syncError
+              }
+            }}
+          >
+            <RotateCw className={cn('mr-2', isSyncing && 'animate-spin')} size={16} />
+            {isSyncing ? 'Recording time with server…' : 'Sync & Record Now'}
+          </Button>
+        </div>
       </Panel>
     );
 
