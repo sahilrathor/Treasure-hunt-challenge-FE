@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, Clipboard, Eye, EyeOff, KeyRound, Sparkles, X } from 'lucide-react';
 
 import { Button } from '@/components/atoms/Button';
@@ -26,6 +26,25 @@ export function ChangePasswordModal({ member, onClose, onSuccess }: Props) {
   const [error, setError] = useState('');
   const [successPassword, setSuccessPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setCustomPassword('');
+    setShowPassword(false);
+    setBusy(false);
+    setError('');
+    setSuccessPassword(null);
+    setCopied(false);
+  }, [member?.id]);
+
+  function handleClose() {
+    setCustomPassword('');
+    setShowPassword(false);
+    setBusy(false);
+    setError('');
+    setSuccessPassword(null);
+    setCopied(false);
+    onClose();
+  }
 
   if (!member) return null;
 
@@ -83,7 +102,7 @@ export function ChangePasswordModal({ member, onClose, onSuccess }: Props) {
       <div className="relative w-full max-w-lg rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-cyan-950/40">
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleClose}
           aria-label="Close dialog"
           className="absolute right-5 top-5 rounded-xl border border-slate-700/60 p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white"
         >
@@ -171,7 +190,7 @@ export function ChangePasswordModal({ member, onClose, onSuccess }: Props) {
             <Button
               type="button"
               className="mt-4 w-full"
-              onClick={onClose}
+              onClick={handleClose}
             >
               Done
             </Button>
@@ -238,7 +257,7 @@ export function ChangePasswordModal({ member, onClose, onSuccess }: Props) {
                   type="button"
                   variant="secondary"
                   disabled={busy}
-                  onClick={onClose}
+                  onClick={handleClose}
                 >
                   Cancel
                 </Button>

@@ -1749,13 +1749,16 @@ export function AdminPage() {
       ) : null}
 
       {/* Password Management Modals */}
-      <ChangePasswordModal
-        member={passwordTarget}
-        onClose={() => setPasswordTarget(null)}
-        onSuccess={(pwd) => {
-          setNotice(`Password updated for ${passwordTarget?.displayName} (${passwordTarget?.memberCode}): ${pwd}`);
-        }}
-      />
+      {passwordTarget && (
+        <ChangePasswordModal
+          key={passwordTarget.id}
+          member={passwordTarget}
+          onClose={() => setPasswordTarget(null)}
+          onSuccess={(pwd) => {
+            setNotice(`Password updated for ${passwordTarget.displayName} (${passwordTarget.memberCode}): ${pwd}`);
+          }}
+        />
+      )}
 
       <ChangeAdminPasswordModal
         open={adminPasswordOpen}

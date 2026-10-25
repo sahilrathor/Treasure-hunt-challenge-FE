@@ -73,4 +73,41 @@ describe('ChangePasswordModal', () => {
 
     expect(huntApi.resetParticipantPassword).toHaveBeenCalledWith('user-123', 'SecretPass123!');
   });
+
+  it('resets previous success state and password when changing to another participant', async () => {
+    vi.mocked(huntApi.resetParticipantPassword).mockResolvedValueOnce({
+      id: 'user-123',
+      memberCode: 'TEAM-01-A',
+      displayName: 'Rahul Sharma',
+      password: 'Hunt-111111!',
+    });
+
+    const { rerender } = render(<ChangePasswordModal member={member} onClose={vi.fn()} />);
+
+    // Reset password for player 1
+    fireEvent.click(screen.getByRole('button', { name: /generate/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Hunt-111111!')).toBeInTheDocument();
+      expect(screen.getByText(/password updated successfully/i)).toBeInTheDocument();
+    });
+
+    // Now open modal for player 2
+    const secondMember = {
+      id: 'user-456',
+      displayName: 'Priya Verma',
+      memberCode: 'TEAM-02-B',
+      teamName: 'Cyber Knights',
+    };
+    rerender(<ChangePasswordModal member={secondMember} onClose={vi.fn()} />);
+
+    // Old success message and old password must NOT be displayed
+    expect(screen.queryByText('Hunt-111111!')).not.toBeInTheDocument();
+    expect(screen.queryByText(/password updated successfully/i)).not.toBeInTheDocument();
+
+    // Fresh participant details and actions must be displayed for player 2
+    expect(screen.getByText('Priya Verma')).toBeInTheDocument();
+    expect(screen.getByText('TEAM-02-B')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /generate/i })).toBeInTheDocument();
+  });
 });
+
