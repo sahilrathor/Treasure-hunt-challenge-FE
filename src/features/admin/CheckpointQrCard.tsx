@@ -7,12 +7,14 @@ import {
   Edit3,
   Eye,
   EyeOff,
+  FileDown,
   FileText,
   QrCode,
 } from 'lucide-react';
 
 import { Button } from '@/components/atoms/Button';
 import { copyToClipboard } from '@/lib/utils';
+import { generateLocationQrsPdf } from './qr-pdf-export';
 
 export interface CheckpointSummary {
   id: string;
@@ -46,6 +48,7 @@ export function CheckpointQrCard({
   disabled,
   onGenerate,
   onCopyLink,
+  onDownloadPdf,
   onEditLocation,
   onEditClue,
   onEditDifficulty,
@@ -56,6 +59,7 @@ export function CheckpointQrCard({
   disabled: boolean;
   onGenerate(): void;
   onCopyLink?(): void;
+  onDownloadPdf?(): void;
   onEditLocation?(): void;
   onEditClue?(): void;
   onEditDifficulty?(): void;
@@ -83,6 +87,23 @@ export function CheckpointQrCard({
     } else {
       onGenerate();
     }
+  }
+
+  async function handleDownloadPdf() {
+    if (onDownloadPdf) {
+      onDownloadPdf();
+      return;
+    }
+    const doc = await generateLocationQrsPdf({
+      checkpoints: [
+        {
+          ...checkpoint,
+          scanUrl: effectiveScanUrl,
+        },
+      ],
+    });
+    const codePart = (checkpoint.code || `loc-${checkpoint.sequence || 1}`).toLowerCase();
+    doc.save(`${codePart}-qr.pdf`);
   }
 
   return (
@@ -216,8 +237,8 @@ export function CheckpointQrCard({
             </button>
           </div>
 
-          <div className="mt-2.5">
-            <Button asChild className="w-full">
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
+            <Button asChild variant="secondary" className="w-full text-xs font-semibold">
               <a
                 href={generated.imageUrl}
                 download={
@@ -226,48 +247,59 @@ export function CheckpointQrCard({
                     : `checkpoint-${checkpoint.sequence}-qr.png`
                 }
               >
-                <Download className="mr-1.5" size={15} /> Download QR Image
+                <Download className="mr-1.5" size={14} /> Download PNG
               </a>
             </Button>
-            {/* Regenerate QR button commented out to prevent invalidating printed QR codes:
             <Button
               type="button"
-              variant="secondary"
+              className="w-full text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold"
               disabled={disabled || busy}
-              onClick={onGenerate}
+              onClick={handleDownloadPdf}
+              title="Download single printable PDF for this location"
             >
-              <RefreshCw className="mr-1.5" size={15} /> Refresh
+              <FileDown className="mr-1.5 text-slate-950" size={14} /> Download PDF
             </Button>
-            */}
           </div>
         </div>
       ) : (
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            className="w-full text-xs font-semibold"
-            disabled={disabled || busy}
-            onClick={onGenerate}
-          >
-            <QrCode className="mr-1.5" size={15} /> {busy ? 'Generating…' : 'Generate QR'}
-          </Button>
+        <div className="mt-4 flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              className="w-full text-xs font-semibold"
+              disabled={disabled || busy}
+              onClick={onGenerate}
+            >
+              <QrCode className="mr-1.5" size={15} /> {busy ? 'Generating…' : 'Generate QR'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full text-xs font-semibold border-slate-700 hover:border-cyan-500/40"
+              disabled={disabled || busy}
+              onClick={handleCopy}
+              title={effectiveScanUrl ? 'Copy scan link to clipboard' : 'Generate and copy scan link'}
+            >
+              {copied ? (
+                <>
+                  <Check className="mr-1.5 text-emerald-400" size={14} /> Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="mr-1.5 text-cyan-300" size={14} /> Copy Link
+                </>
+              )}
+            </Button>
+          </div>
           <Button
             type="button"
             variant="secondary"
-            className="w-full text-xs font-semibold border-slate-700 hover:border-cyan-500/40"
+            className="w-full text-xs font-semibold border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300"
             disabled={disabled || busy}
-            onClick={handleCopy}
-            title={effectiveScanUrl ? 'Copy scan link to clipboard' : 'Generate and copy scan link'}
+            onClick={handleDownloadPdf}
+            title="Download printable single QR PDF for this location"
           >
-            {copied ? (
-              <>
-                <Check className="mr-1.5 text-emerald-400" size={14} /> Copied!
-              </>
-            ) : (
-              <>
-                <Copy className="mr-1.5 text-cyan-300" size={14} /> Copy Link
-              </>
-            )}
+            <FileDown className="mr-1.5 text-cyan-400" size={14} /> Download Single QR (PDF)
           </Button>
         </div>
       )}

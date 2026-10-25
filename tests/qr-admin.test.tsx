@@ -146,3 +146,46 @@ it('generates a PDF with 8 QRs per page and location names below QR', async () =
   expect(doc.getNumberOfPages()).toBe(2);
 });
 
+it('offers single QR download as PNG and PDF on generated card', () => {
+  const handleDownloadPdf = vi.fn();
+  render(
+    <CheckpointQrCard
+      checkpoint={checkpoint}
+      generated={{
+        ...checkpoint,
+        scanUrl: 'http://localhost:5173/scan?token=secret',
+        imageUrl: 'data:image/png;base64,qr-image',
+      }}
+      busy={false}
+      disabled={false}
+      onGenerate={() => undefined}
+      onDownloadPdf={handleDownloadPdf}
+    />,
+  );
+
+  expect(screen.getByRole('link', { name: /download png/i })).toBeVisible();
+  const pdfBtn = screen.getByRole('button', { name: /download pdf/i });
+  expect(pdfBtn).toBeVisible();
+  pdfBtn.click();
+  expect(handleDownloadPdf).toHaveBeenCalledOnce();
+});
+
+it('offers single QR download on ungenerated card', () => {
+  const handleDownloadPdf = vi.fn();
+  render(
+    <CheckpointQrCard
+      checkpoint={checkpoint}
+      busy={false}
+      disabled={false}
+      onGenerate={() => undefined}
+      onDownloadPdf={handleDownloadPdf}
+    />,
+  );
+
+  const downloadBtn = screen.getByRole('button', { name: /download single qr/i });
+  expect(downloadBtn).toBeVisible();
+  downloadBtn.click();
+  expect(handleDownloadPdf).toHaveBeenCalledOnce();
+});
+
+

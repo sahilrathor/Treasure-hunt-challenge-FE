@@ -650,6 +650,57 @@ export function AdminPage() {
     }
   }
 
+  async function downloadSingleQrPdf(checkpoint: CheckpointSummary) {
+    let scanUrl = checkpointQrs[checkpoint.id]?.scanUrl || checkpoint.scanUrl;
+    if (!scanUrl) {
+      setBusy(`qr-${checkpoint.id}`);
+      setError('');
+      try {
+        const response = await api.patch<ApiEnvelope<{ scanUrl: string }>>(
+          `/admin/checkpoints/${checkpoint.id}`,
+          { rotateToken: true },
+        );
+        const resolvedUrl = response.data.data.scanUrl;
+        const imageUrl = await QRCode.toDataURL(resolvedUrl, {
+          width: 420,
+          margin: 2,
+          errorCorrectionLevel: 'M',
+        });
+        setCheckpointQrs((current) => ({
+          ...current,
+          [checkpoint.id]: {
+            ...checkpoint,
+            scanUrl: resolvedUrl,
+            imageUrl,
+          },
+        }));
+        scanUrl = resolvedUrl;
+      } catch (cause) {
+        setError(cause instanceof ApiError ? cause.message : 'Could not prepare QR scan link.');
+        return;
+      } finally {
+        setBusy('');
+      }
+    }
+
+    try {
+      const doc = await generateLocationQrsPdf({
+        checkpoints: [
+          {
+            ...checkpoint,
+            scanUrl,
+          },
+        ],
+      });
+      const codePart = (checkpoint.code || `loc-${checkpoint.sequence || 1}`).toLowerCase();
+      const labelPart = checkpoint.label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      doc.save(`${codePart}-${labelPart}-qr.pdf`);
+      setNotice(`Downloaded single printable QR PDF for ${checkpoint.label}!`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not generate QR PDF.');
+    }
+  }
+
   async function addTeam(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!setup.event) return;
@@ -1241,6 +1292,7 @@ export function AdminPage() {
                   disabled={!qrEditable || busy === 'all-qrs'}
                   onGenerate={() => void generateQr(checkpoint)}
                   onCopyLink={() => void copyQrLink(checkpoint)}
+                  onDownloadPdf={() => void downloadSingleQrPdf(checkpoint)}
                   onEditLocation={() => setEditingLocation(checkpoint as LocationData)}
                   onEditDifficulty={() => {
                     setSelectedCheckpointForDifficulty(checkpoint.id);

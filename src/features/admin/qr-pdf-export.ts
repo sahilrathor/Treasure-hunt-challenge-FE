@@ -24,6 +24,41 @@ export async function generateLocationQrsPdf({
     format: 'a4',
   });
 
+  // If exporting a single location QR, center it prominently on the page
+  if (checkpoints.length === 1) {
+    const cp = checkpoints[0];
+    let scanUrl = cp.scanUrl;
+    if (!scanUrl && getScanUrl) {
+      scanUrl = await getScanUrl(cp);
+    }
+    if (!scanUrl) {
+      scanUrl = `checkpoint-${cp.id}`;
+    }
+
+    const qrDataUrl = await QRCode.toDataURL(scanUrl, {
+      width: 600,
+      margin: 2,
+      errorCorrectionLevel: 'M',
+    });
+
+    const singleQrSize = 100;
+    const singleQrX = (210 - singleQrSize) / 2;
+    const singleQrY = 75;
+
+    doc.addImage(qrDataUrl, 'PNG', singleQrX, singleQrY, singleQrSize, singleQrSize);
+
+    const displayText = cp.code ? `${cp.code} · ${cp.label}` : cp.label;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(15, 23, 42);
+
+    const textLines = doc.splitTextToSize(displayText, 170);
+    const textY = singleQrY + singleQrSize + 16;
+    doc.text(textLines, 105, textY, { align: 'center' });
+
+    return doc;
+  }
+
   // 8 QRs per page arranged in a 2 column x 4 row grid
   const qrSize = 50; // 50mm x 50mm QR code
   const colCenters = [58, 152]; // Centers for 2 columns on A4 (210mm wide)
