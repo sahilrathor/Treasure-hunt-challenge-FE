@@ -24,7 +24,7 @@ import {
   TimerReset,
   Users,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import QRCode from 'qrcode';
 
 import {
@@ -119,6 +119,10 @@ interface TeamEdit {
   name: string;
 }
 
+export function generateTeamCode(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '_');
+}
+
 const blankMember = (): Member => ({ memberCode: '', displayName: '' });
 
 export function AdminPage() {
@@ -130,6 +134,8 @@ export function AdminPage() {
   const [inlineRoutes, setInlineRoutes] = useState<Record<string, string>>({});
   const [savingInlineRoutes, setSavingInlineRoutes] = useState(false);
   const [routeNotice, setRouteNotice] = useState('');
+  const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamCode, setNewTeamCode] = useState('');
   const [members, setMembers] = useState<Member[]>([blankMember(), blankMember(), blankMember()]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [checkpointQrs, setCheckpointQrs] = useState<Record<string, GeneratedCheckpointQr>>({});
@@ -154,6 +160,25 @@ export function AdminPage() {
   const [unlockedLogoutIds, setUnlockedLogoutIds] = useState<Record<string, boolean>>({});
   const clickTrackerRef = useRef<Record<string, { count: number; timer: ReturnType<typeof setTimeout> }>>({});
   const hasInitializedStructure = useRef(false);
+  const location = useLocation();
+
+  // Listen for secret admin command trigger from navbar
+  useEffect(() => {
+    function handleOpenResetModal() {
+      setResetModalOpen(true);
+    }
+    window.addEventListener('open-reset-hunt-modal', handleOpenResetModal);
+    return () => {
+      window.removeEventListener('open-reset-hunt-modal', handleOpenResetModal);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (location.state && (location.state as any).openResetModal) {
+      setResetModalOpen(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   function handleTripleClickUnlock(id: string, e?: React.MouseEvent) {
     if (unlockedLogoutIds[id]) return;
@@ -508,6 +533,8 @@ export function AdminPage() {
     event.preventDefault();
     if (!setup.event) return;
     const form = new FormData(event.currentTarget);
+    const name = (newTeamName || (form.get('name') as string) || '').trim();
+    const code = (newTeamCode || (form.get('code') as string) || generateTeamCode(name)).trim();
     setBusy('team');
     setError('');
     setNotice('');
@@ -516,13 +543,15 @@ export function AdminPage() {
         '/admin/simple/teams',
         {
           eventId: setup.event.id,
-          code: form.get('code'),
-          name: form.get('name'),
+          code,
+          name,
           members,
         },
       );
       setCredentials(response.data.data.credentials);
       setMembers([blankMember(), blankMember(), blankMember()]);
+      setNewTeamName('');
+      setNewTeamCode('');
       event.currentTarget.reset();
       setNotice('Team added. Save the login details shown below.');
       await load();
@@ -763,14 +792,6 @@ export function AdminPage() {
                 onClick={() => setRoundMappingOpen(true)}
               >
                 <Shuffle className="mr-1.5 text-cyan-300" size={16} /> Round Games
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="min-h-10 text-xs bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-500/20 hover:border-rose-400"
-                onClick={() => setResetModalOpen(true)}
-              >
-                <Trash2 className="mr-1.5 text-rose-400" size={16} /> Reset Data
               </Button>
             </>
           ) : null}
@@ -1322,16 +1343,29 @@ export function AdminPage() {
                 label="Team name"
                 name="name"
                 placeholder="Code Crusaders"
+                value={newTeamName}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  setNewTeamName(val);
+                  setNewTeamCode(generateTeamCode(val));
+                }}
                 required
                 disabled={!editable}
               />
-              <Field
-                label="Team code"
-                name="code"
-                placeholder="TEAM-01"
-                required
-                disabled={!editable}
-              />
+              <div>
+                <Field
+                  label="Team code"
+                  name="code"
+                  placeholder="code_crusaders"
+                  value={newTeamCode}
+                  onChange={(event) => setNewTeamCode(event.target.value)}
+                  required
+                  disabled={!editable}
+                />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Auto-generated (lowercase, spaces replaced with _)
+                </p>
+              </div>
             </div>
 
             <div className="grid gap-3">
@@ -1545,11 +1579,14 @@ export function AdminPage() {
                           label="Team name"
                           required
                           value={editingTeam.name}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const val = event.target.value;
                             setEditingTeam((current) =>
-                              current ? { ...current, name: event.target.value } : current,
-                            )
-                          }
+                              current
+                                ? { ...current, name: val, code: generateTeamCode(val) }
+                                : current,
+                            );
+                          }}
                         />
                         <Field
                           label="Team code"
