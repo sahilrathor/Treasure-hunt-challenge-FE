@@ -153,6 +153,7 @@ export function AdminPage() {
   const [selectedCheckpointForDifficulty, setSelectedCheckpointForDifficulty] = useState<string | null>(null);
   const [unlockedLogoutIds, setUnlockedLogoutIds] = useState<Record<string, boolean>>({});
   const clickTrackerRef = useRef<Record<string, { count: number; timer: ReturnType<typeof setTimeout> }>>({});
+  const hasInitializedStructure = useRef(false);
 
   function handleTripleClickUnlock(id: string, e?: React.MouseEvent) {
     if (unlockedLogoutIds[id]) return;
@@ -216,11 +217,12 @@ export function AdminPage() {
     return setup.checkpoints.slice(0, roundCount);
   }, [setup.rounds, setup.checkpoints, roundCount]);
 
-  async function load() {
+  async function load(isBackground = false) {
     try {
       const response = await api.get<ApiEnvelope<SimpleSetup>>('/admin/simple');
       setSetup(response.data.data);
-      if (response.data.data.event) {
+      if (response.data.data.event && (!hasInitializedStructure.current || !isBackground)) {
+        hasInitializedStructure.current = true;
         const rc =
           response.data.data.event.round_count ??
           response.data.data.event.checkpoint_count ??
@@ -236,26 +238,33 @@ export function AdminPage() {
         setSelectedRouteTeamId(response.data.data.teams[0]?.id ?? '');
       }
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : 'Could not load setup.');
+      if (!isBackground) {
+        setError(cause instanceof ApiError ? cause.message : 'Could not load setup.');
+      }
     }
   }
 
-  // Synchronize route assignments for all teams and rounds
+  // Synchronize route assignments for all teams and rounds without wiping unsaved edits
   useEffect(() => {
     if (!setup.teams.length || !setup.checkpoints.length) return;
-    const initial: Record<string, string> = {};
     const effectiveRounds = Array.from({ length: roundCount }, (_, i) => i + 1);
-    for (const team of setup.teams) {
-      for (const seq of effectiveRounds) {
-        const key = `${team.id}:${seq}`;
-        if (team.roundLocations && team.roundLocations[seq]) {
-          initial[key] = team.roundLocations[seq]!;
-        } else {
-          initial[key] = setup.checkpoints[(seq - 1) % setup.checkpoints.length]!.id;
+    setInlineRoutes((prev) => {
+      const next = { ...prev };
+      for (const team of setup.teams) {
+        for (const seq of effectiveRounds) {
+          const key = `${team.id}:${seq}`;
+          if (next[key] === undefined) {
+            if (team.roundLocations && team.roundLocations[seq]) {
+              next[key] = team.roundLocations[seq]!;
+            } else {
+              const defaultCp = setup.checkpoints[(seq - 1) % setup.checkpoints.length];
+              if (defaultCp) next[key] = defaultCp.id;
+            }
+          }
         }
       }
-    }
-    setInlineRoutes(initial);
+      return next;
+    });
     if (!selectedRouteTeamId && setup.teams[0]) {
       setSelectedRouteTeamId(setup.teams[0].id);
     }
@@ -380,12 +389,21 @@ export function AdminPage() {
   }
 
   useEffect(() => {
-    void load();
+    void load(false);
     const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        void load();
-      }
-    }, 12_000);
+      if (document.visibilityState !== 'visible') return;
+
+      // Do not poll if the user is actively focused on an input element
+      const activeEl = document.activeElement;
+      const isUserTyping =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        activeEl instanceof HTMLSelectElement;
+
+      if (isUserTyping) return;
+
+      void load(true);
+    }, 15_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -629,7 +647,8 @@ export function AdminPage() {
       setCheckpointQrs({});
       setCredentials([]);
       setNotice('A new draft hunt is ready. Configure its checkpoints and teams.');
-      await load();
+      hasInitializedStructure.current = false;
+      await load(false);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not create a new hunt.');
     } finally {
@@ -1788,8 +1807,9 @@ export function AdminPage() {
           onClose={() => setResetModalOpen(false)}
           eventId={setup.event.id}
           onSuccess={(msg) => {
+            hasInitializedStructure.current = false;
             setNotice(msg);
-            void load();
+            void load(false);
           }}
         />
       )}
