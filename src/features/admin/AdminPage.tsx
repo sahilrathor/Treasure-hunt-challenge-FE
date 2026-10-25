@@ -6,6 +6,7 @@ import {
   Clipboard,
   Clock,
   Compass,
+  Copy,
   Dices,
   ExternalLink,
   Gamepad2,
@@ -53,7 +54,7 @@ import { api, ApiError } from '@/services/api-client';
 import { huntApi } from '@/services/hunt-api';
 import { useAuthStore } from '@/stores/auth.store';
 import type { ApiEnvelope } from '@/types/api';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 
 export interface ActiveSession {
   sessionId: string;
@@ -552,6 +553,61 @@ export function AdminPage() {
       setError(cause instanceof ApiError ? cause.message : 'Could not generate all QR codes.');
     } finally {
       setBusy('');
+    }
+  }
+
+  async function copyQrLink(checkpoint: CheckpointSummary) {
+    let scanUrl = checkpointQrs[checkpoint.id]?.scanUrl || checkpoint.scanUrl;
+    if (!scanUrl) {
+      setBusy(`qr-${checkpoint.id}`);
+      setError('');
+      try {
+        const response = await api.patch<ApiEnvelope<{ scanUrl: string }>>(
+          `/admin/checkpoints/${checkpoint.id}`,
+          { rotateToken: true },
+        );
+        const resolvedUrl = response.data.data.scanUrl;
+        const imageUrl = await QRCode.toDataURL(resolvedUrl, {
+          width: 420,
+          margin: 2,
+          errorCorrectionLevel: 'M',
+        });
+        setCheckpointQrs((current) => ({
+          ...current,
+          [checkpoint.id]: {
+            ...checkpoint,
+            scanUrl: resolvedUrl,
+            imageUrl,
+          },
+        }));
+        scanUrl = resolvedUrl;
+      } catch (cause) {
+        setError(cause instanceof ApiError ? cause.message : 'Could not generate QR scan link.');
+        return;
+      } finally {
+        setBusy('');
+      }
+    }
+
+    if (scanUrl) {
+      await copyToClipboard(scanUrl);
+      setNotice(`Copied scan link for ${checkpoint.label} to clipboard!`);
+    }
+  }
+
+  async function copyAllQrLinks() {
+    if (!setup.checkpoints.length) return;
+    try {
+      const lines = setup.checkpoints.map((cp) => {
+        const url = checkpointQrs[cp.id]?.scanUrl || cp.scanUrl || '(QR not generated yet)';
+        const code = cp.code || `LOC-${cp.sequence}`;
+        return `${code} (${cp.label}): ${url}`;
+      });
+      const allText = lines.join('\n');
+      await copyToClipboard(allText);
+      setNotice(`Copied all ${setup.checkpoints.length} location scan links to clipboard!`);
+    } catch {
+      setError('Could not copy location scan links.');
     }
   }
 
@@ -1107,6 +1163,16 @@ export function AdminPage() {
                 <Button
                   type="button"
                   variant="secondary"
+                  className="text-xs"
+                  disabled={!setup.checkpoints.length}
+                  onClick={() => void copyAllQrLinks()}
+                  title="Copy all location scan links to clipboard"
+                >
+                  <Copy className="mr-1.5 text-cyan-300" size={15} /> Copy all links
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
                   disabled={!qrEditable || !setup.checkpoints.length || busy === 'all-qrs'}
                   onClick={() => void generateAllQrs()}
                 >
@@ -1125,6 +1191,7 @@ export function AdminPage() {
                   busy={busy === `qr-${checkpoint.id}`}
                   disabled={!qrEditable || busy === 'all-qrs'}
                   onGenerate={() => void generateQr(checkpoint)}
+                  onCopyLink={() => void copyQrLink(checkpoint)}
                   onEditLocation={() => setEditingLocation(checkpoint as LocationData)}
                   onEditDifficulty={() => {
                     setSelectedCheckpointForDifficulty(checkpoint.id);

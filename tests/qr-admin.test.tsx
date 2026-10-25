@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 
 import { CheckpointQrCard } from '@/features/admin/CheckpointQrCard';
 
@@ -82,3 +82,46 @@ it('displays the difficulty badge and fires onEditDifficulty when clicked', () =
   editDiffBtn.click();
   expect(handleEditDifficulty).toHaveBeenCalledOnce();
 });
+
+it('offers a copy link button alongside generate QR and handles click', async () => {
+  const handleCopyLink = vi.fn();
+  render(
+    <CheckpointQrCard
+      checkpoint={{
+        ...checkpoint,
+        scanUrl: 'http://localhost:5173/scan?token=test-scan-token',
+      }}
+      busy={false}
+      disabled={false}
+      onGenerate={() => undefined}
+      onCopyLink={handleCopyLink}
+    />,
+  );
+
+  const copyBtn = screen.getByRole('button', { name: /copy link/i });
+  expect(copyBtn).toBeVisible();
+  copyBtn.click();
+  await waitFor(() => {
+    expect(handleCopyLink).toHaveBeenCalledOnce();
+  });
+});
+
+it('displays the scan URL and copy button when QR is generated', () => {
+  render(
+    <CheckpointQrCard
+      checkpoint={checkpoint}
+      generated={{
+        ...checkpoint,
+        scanUrl: 'http://localhost:5173/scan?token=secret',
+        imageUrl: 'data:image/png;base64,qr-image',
+      }}
+      busy={false}
+      disabled={false}
+      onGenerate={() => undefined}
+    />,
+  );
+
+  expect(screen.getByText('http://localhost:5173/scan?token=secret')).toBeVisible();
+  expect(screen.getByTitle(/copy scan link/i)).toBeVisible();
+});
+

@@ -1,6 +1,19 @@
-import { Compass, Download, Edit3, Eye, EyeOff, FileText, QrCode, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import {
+  Check,
+  Compass,
+  Copy,
+  Download,
+  Edit3,
+  Eye,
+  EyeOff,
+  FileText,
+  QrCode,
+  RefreshCw,
+} from 'lucide-react';
 
 import { Button } from '@/components/atoms/Button';
+import { copyToClipboard } from '@/lib/utils';
 
 export interface CheckpointSummary {
   id: string;
@@ -33,6 +46,7 @@ export function CheckpointQrCard({
   busy,
   disabled,
   onGenerate,
+  onCopyLink,
   onEditLocation,
   onEditClue,
   onEditDifficulty,
@@ -42,12 +56,35 @@ export function CheckpointQrCard({
   busy: boolean;
   disabled: boolean;
   onGenerate(): void;
+  onCopyLink?(): void;
   onEditLocation?(): void;
   onEditClue?(): void;
   onEditDifficulty?(): void;
 }) {
+  const [copied, setCopied] = useState(false);
   const code = checkpoint.code || (checkpoint.sequence ? `LOC-${checkpoint.sequence}` : 'LOC');
   const handleEdit = onEditLocation || onEditClue;
+  const effectiveScanUrl = generated?.scanUrl || checkpoint.scanUrl;
+
+  async function handleCopy() {
+    if (effectiveScanUrl) {
+      const ok = await copyToClipboard(effectiveScanUrl);
+      if (ok) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+      onCopyLink?.();
+      return;
+    }
+
+    if (onCopyLink) {
+      onCopyLink();
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      onGenerate();
+    }
+  }
 
   return (
     <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 flex flex-col justify-between hover:border-slate-700/80 transition shadow-lg">
@@ -151,7 +188,36 @@ export function CheckpointQrCard({
           <p className="mt-1.5 text-center font-mono text-[11px] text-slate-400 truncate">
             {checkpoint.code || 'LOC'} · {checkpoint.label}
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+
+          {/* Direct Scan Link Preview & Copy */}
+          <div className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900/90 px-2.5 py-1.5 text-xs">
+            <span
+              className="font-mono text-[11px] text-slate-300 truncate select-all flex-1"
+              title={generated.scanUrl}
+            >
+              {generated.scanUrl}
+            </span>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="inline-flex items-center gap-1 rounded bg-cyan-950/70 border border-cyan-500/40 hover:bg-cyan-900/60 px-2 py-0.5 text-[11px] font-bold text-cyan-300 transition shrink-0"
+              title="Copy scan link to clipboard"
+            >
+              {copied ? (
+                <>
+                  <Check size={12} className="text-emerald-400" />
+                  <span className="text-emerald-400">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy size={12} />
+                  <span>Copy</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
             <Button asChild>
               <a
                 href={generated.imageUrl}
@@ -175,14 +241,34 @@ export function CheckpointQrCard({
           </div>
         </div>
       ) : (
-        <Button
-          type="button"
-          className="mt-4 w-full"
-          disabled={disabled || busy}
-          onClick={onGenerate}
-        >
-          <QrCode className="mr-2" size={17} /> {busy ? 'Generating…' : 'Generate QR'}
-        </Button>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button
+            type="button"
+            className="w-full text-xs font-semibold"
+            disabled={disabled || busy}
+            onClick={onGenerate}
+          >
+            <QrCode className="mr-1.5" size={15} /> {busy ? 'Generating…' : 'Generate QR'}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full text-xs font-semibold border-slate-700 hover:border-cyan-500/40"
+            disabled={disabled || busy}
+            onClick={handleCopy}
+            title={effectiveScanUrl ? 'Copy scan link to clipboard' : 'Generate and copy scan link'}
+          >
+            {copied ? (
+              <>
+                <Check className="mr-1.5 text-emerald-400" size={14} /> Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="mr-1.5 text-cyan-300" size={14} /> Copy Link
+              </>
+            )}
+          </Button>
+        </div>
       )}
     </article>
   );
