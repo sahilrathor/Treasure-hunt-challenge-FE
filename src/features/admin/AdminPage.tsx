@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
+  ArrowRight,
   Check,
+  CheckCircle2,
   Clipboard,
   Compass,
+  Dices,
   ExternalLink,
   Gamepad2,
   Gauge,
@@ -39,10 +42,13 @@ import { RoundGameMappingModal } from './RoundGameMappingModal';
 import { CheckpointCluesModal } from './CheckpointCluesModal';
 import { RoundDifficultiesModal } from './RoundDifficultiesModal';
 import { CooldownSettingsModal } from './CooldownSettingsModal';
+import { EditLocationModal, type LocationData } from './EditLocationModal';
+import { TeamLocationRoutesModal } from './TeamLocationRoutesModal';
 import { Button } from '@/components/atoms/Button';
 import { Field } from '@/components/atoms/Field';
 import { Panel } from '@/components/atoms/Panel';
 import { api, ApiError } from '@/services/api-client';
+import { huntApi } from '@/services/hunt-api';
 import { useAuthStore } from '@/stores/auth.store';
 import type { ApiEnvelope } from '@/types/api';
 
@@ -72,9 +78,8 @@ interface Team {
   status: string;
   current_sequence: number;
   participants: Array<Member & { id: string }>;
+  roundLocations?: Record<number, string>;
 }
-
-const qrKey = (checkpointId: string, teamId: string) => `${checkpointId}:${teamId}`;
 
 interface SimpleSetup {
   event: {
@@ -83,9 +88,21 @@ interface SimpleSetup {
     slug: string;
     status: string;
     checkpoint_count: number;
+    round_count?: number;
+    location_count?: number;
   } | null;
   teams: Team[];
   checkpoints: CheckpointSummary[];
+  rounds?: Array<{
+    id: string;
+    sequence: number;
+    difficulty: 'easy' | 'medium' | 'hard';
+    clue: string;
+    checkpoint_id: string;
+    game_id: string | null;
+    game_name: string | null;
+    game_code: string | null;
+  }>;
   activeSessions?: ActiveSession[];
 }
 
@@ -104,12 +121,18 @@ const blankMember = (): Member => ({ memberCode: '', displayName: '' });
 export function AdminPage() {
   const adminUsername = useAuthStore((state) => state.identity?.username ?? '');
   const [setup, setSetup] = useState<SimpleSetup>({ event: null, teams: [], checkpoints: [] });
-  const [checkpointCount, setCheckpointCount] = useState(8);
+  const [roundCount, setRoundCount] = useState(5);
+  const [locationCount, setLocationCount] = useState(5);
+  const [selectedRouteTeamId, setSelectedRouteTeamId] = useState<string>('');
+  const [inlineRoutes, setInlineRoutes] = useState<Record<string, string>>({});
+  const [savingInlineRoutes, setSavingInlineRoutes] = useState(false);
+  const [routeNotice, setRouteNotice] = useState('');
   const [members, setMembers] = useState<Member[]>([blankMember(), blankMember(), blankMember()]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [checkpointQrs, setCheckpointQrs] = useState<Record<string, GeneratedCheckpointQr>>({});
-  const [selectedQrTeamId, setSelectedQrTeamId] = useState('');
   const [editingTeam, setEditingTeam] = useState<TeamEdit | null>(null);
+  const [editingLocation, setEditingLocation] = useState<LocationData | null>(null);
+  const [teamRoutesModalOpen, setTeamRoutesModalOpen] = useState(false);
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -147,18 +170,158 @@ export function AdminPage() {
     );
   }, [allParticipants, participantSearch]);
 
-  const selectedQrTeam =
-    setup.teams.find((team) => team.id === selectedQrTeamId) ?? setup.teams[0] ?? null;
+  const roundsForConfig = useMemo(() => {
+    if (setup.rounds && setup.rounds.length) {
+      return setup.rounds.map((r) => ({
+        id: r.id,
+        sequence: r.sequence,
+        difficulty: r.difficulty,
+        clue: r.clue,
+        round_id: r.id,
+        label: `Round ${r.sequence}`,
+        game_id: r.game_id,
+        game_name: r.game_name,
+        game_code: r.game_code,
+      }));
+    }
+    return setup.checkpoints.slice(0, roundCount);
+  }, [setup.rounds, setup.checkpoints, roundCount]);
 
   async function load() {
     try {
       const response = await api.get<ApiEnvelope<SimpleSetup>>('/admin/simple');
       setSetup(response.data.data);
       if (response.data.data.event) {
-        setCheckpointCount(response.data.data.event.checkpoint_count);
+        const rc =
+          response.data.data.event.round_count ??
+          response.data.data.event.checkpoint_count ??
+          5;
+        const lc =
+          response.data.data.event.location_count ??
+          response.data.data.checkpoints.length ??
+          5;
+        setRoundCount(rc);
+        setLocationCount(lc);
+      }
+      if (response.data.data.teams.length && !selectedRouteTeamId) {
+        setSelectedRouteTeamId(response.data.data.teams[0]?.id ?? '');
       }
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not load setup.');
+    }
+  }
+
+  // Synchronize route assignments for all teams and rounds
+  useEffect(() => {
+    if (!setup.teams.length || !setup.checkpoints.length) return;
+    const initial: Record<string, string> = {};
+    const effectiveRounds = Array.from({ length: roundCount }, (_, i) => i + 1);
+    for (const team of setup.teams) {
+      for (const seq of effectiveRounds) {
+        const key = `${team.id}:${seq}`;
+        if (team.roundLocations && team.roundLocations[seq]) {
+          initial[key] = team.roundLocations[seq]!;
+        } else {
+          initial[key] = setup.checkpoints[(seq - 1) % setup.checkpoints.length]!.id;
+        }
+      }
+    }
+    setInlineRoutes(initial);
+    if (!selectedRouteTeamId && setup.teams[0]) {
+      setSelectedRouteTeamId(setup.teams[0].id);
+    }
+  }, [setup.teams, setup.checkpoints, roundCount]);
+
+  function updateInlineRoute(teamId: string, roundSeq: number, checkpointId: string) {
+    setInlineRoutes((prev) => ({
+      ...prev,
+      [`${teamId}:${roundSeq}`]: checkpointId,
+    }));
+  }
+
+  function applySequentialInline(teamId: string) {
+    const effectiveRounds = Array.from({ length: roundCount }, (_, i) => i + 1);
+    setInlineRoutes((prev) => {
+      const next = { ...prev };
+      for (let i = 0; i < effectiveRounds.length; i += 1) {
+        const seq = effectiveRounds[i]!;
+        const cp = setup.checkpoints[i % setup.checkpoints.length]!;
+        next[`${teamId}:${seq}`] = cp.id;
+      }
+      return next;
+    });
+  }
+
+  function applyStaggerInline(teamId: string) {
+    const tIdx = setup.teams.findIndex((t) => t.id === teamId);
+    const offset = tIdx >= 0 ? tIdx : 0;
+    const effectiveRounds = Array.from({ length: roundCount }, (_, i) => i + 1);
+    setInlineRoutes((prev) => {
+      const next = { ...prev };
+      for (let i = 0; i < effectiveRounds.length; i += 1) {
+        const seq = effectiveRounds[i]!;
+        const cp = setup.checkpoints[(offset + i) % setup.checkpoints.length]!;
+        next[`${teamId}:${seq}`] = cp.id;
+      }
+      return next;
+    });
+  }
+
+  function applyRandomInline(teamId: string) {
+    const effectiveRounds = Array.from({ length: roundCount }, (_, i) => i + 1);
+    setInlineRoutes((prev) => {
+      const next = { ...prev };
+      for (const seq of effectiveRounds) {
+        const randomCp = setup.checkpoints[Math.floor(Math.random() * setup.checkpoints.length)]!;
+        next[`${teamId}:${seq}`] = randomCp.id;
+      }
+      return next;
+    });
+  }
+
+  function copyRouteInline(targetTeamId: string, sourceTeamId: string) {
+    if (!sourceTeamId || targetTeamId === sourceTeamId) return;
+    const effectiveRounds = Array.from({ length: roundCount }, (_, i) => i + 1);
+    setInlineRoutes((prev) => {
+      const next = { ...prev };
+      for (const seq of effectiveRounds) {
+        const srcKey = `${sourceTeamId}:${seq}`;
+        if (prev[srcKey]) {
+          next[`${targetTeamId}:${seq}`] = prev[srcKey]!;
+        }
+      }
+      return next;
+    });
+  }
+
+  async function saveAllInlineRoutes() {
+    if (!setup.event) return;
+    setSavingInlineRoutes(true);
+    setRouteNotice('');
+    setError('');
+    try {
+      const effectiveRounds = Array.from({ length: roundCount }, (_, i) => i + 1);
+      const mappings: Array<{ teamId: string; roundSequence: number; checkpointId: string }> = [];
+      for (const team of setup.teams) {
+        for (const seq of effectiveRounds) {
+          const cpId = inlineRoutes[`${team.id}:${seq}`];
+          if (cpId) {
+            mappings.push({
+              teamId: team.id,
+              roundSequence: seq,
+              checkpointId: cpId,
+            });
+          }
+        }
+      }
+      await huntApi.updateTeamRoundLocations(setup.event.id, mappings);
+      setRouteNotice('Team routes saved successfully!');
+      setTimeout(() => setRouteNotice(''), 4000);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'Could not save team routes.');
+    } finally {
+      setSavingInlineRoutes(false);
     }
   }
 
@@ -192,71 +355,62 @@ export function AdminPage() {
     return () => clearInterval(interval);
   }, []);
 
-  async function saveCheckpoints(event: FormEvent<HTMLFormElement>) {
+  async function saveStructure(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (
       setup.event &&
-      checkpointCount < setup.event.checkpoint_count &&
+      ((roundCount < (setup.event.round_count ?? setup.event.checkpoint_count)) ||
+        (locationCount < (setup.event.location_count ?? setup.checkpoints.length))) &&
       !window.confirm(
-        `Reduce the hunt from ${setup.event.checkpoint_count} to ${checkpointCount} checkpoints?`,
+        `Reduce the hunt configuration? Make sure no active teams are affected.`,
       )
     ) {
       return;
     }
-    setBusy('checkpoints');
+    setBusy('structure');
     setError('');
     setNotice('');
     try {
       const response = setup.event
-        ? await api.patch<
-            ApiEnvelope<{
-              checkpointCount: number;
-              checkpoints: CheckpointSummary[];
-            }>
-          >(`/admin/events/${setup.event.id}/checkpoint-count`, { checkpointCount })
-        : await api.post<
-            ApiEnvelope<{
-              checkpoints: CheckpointSummary[];
-            }>
-          >('/admin/simple/setup', { checkpointCount });
+        ? await huntApi.updateHuntStructure(setup.event.id, { roundCount, locationCount })
+        : await huntApi.setupHuntStructure({ roundCount, locationCount });
       setNotice(
-        response.data.data.checkpoints.length
-          ? `${checkpointCount} checkpoints are ready. Add teams, then generate their QR codes.`
-          : `Checkpoint count changed to ${checkpointCount}.`,
+        `Configured ${response.roundCount} competition rounds and ${response.locationCount} physical locations/QRs.`,
       );
       await load();
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : 'Could not create checkpoints.');
+      setError(cause instanceof ApiError ? cause.message : 'Could not update hunt structure.');
     } finally {
       setBusy('');
     }
   }
 
-  async function generateQr(checkpoint: CheckpointSummary, team: Team) {
-    const key = qrKey(checkpoint.id, team.id);
-    setBusy(`qr-${key}`);
+  async function generateQr(checkpoint: CheckpointSummary) {
+    setBusy(`qr-${checkpoint.id}`);
     setError('');
     try {
-      const response = await api.patch<ApiEnvelope<{ scanUrl: string }>>(
-        `/admin/checkpoints/${checkpoint.id}`,
-        { rotateToken: true, teamId: team.id },
-      );
-      const imageUrl = await QRCode.toDataURL(response.data.data.scanUrl, {
+      let scanUrl = checkpoint.scanUrl;
+      if (!scanUrl) {
+        const response = await api.patch<ApiEnvelope<{ scanUrl: string }>>(
+          `/admin/checkpoints/${checkpoint.id}`,
+          { rotateToken: true },
+        );
+        scanUrl = response.data.data.scanUrl;
+      }
+      const imageUrl = await QRCode.toDataURL(scanUrl, {
         width: 420,
         margin: 2,
         errorCorrectionLevel: 'M',
       });
       setCheckpointQrs((current) => ({
         ...current,
-        [key]: {
+        [checkpoint.id]: {
           ...checkpoint,
-          teamId: team.id,
-          teamCode: team.code,
-          scanUrl: response.data.data.scanUrl,
+          scanUrl,
           imageUrl,
         },
       }));
-      setNotice(`${team.name}'s ${checkpoint.label} QR is ready.`);
+      setNotice(`${checkpoint.label} QR is ready.`);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not generate the QR code.');
     } finally {
@@ -268,30 +422,29 @@ export function AdminPage() {
     setBusy('all-qrs');
     setError('');
     try {
+      const nextQrs: Record<string, GeneratedCheckpointQr> = {};
       for (const checkpoint of setup.checkpoints) {
-        for (const team of setup.teams) {
+        let scanUrl = checkpoint.scanUrl;
+        if (!scanUrl) {
           const response = await api.patch<ApiEnvelope<{ scanUrl: string }>>(
             `/admin/checkpoints/${checkpoint.id}`,
-            { rotateToken: true, teamId: team.id },
+            { rotateToken: true },
           );
-          const generated = {
-            ...checkpoint,
-            teamId: team.id,
-            teamCode: team.code,
-            scanUrl: response.data.data.scanUrl,
-            imageUrl: await QRCode.toDataURL(response.data.data.scanUrl, {
-              width: 420,
-              margin: 2,
-              errorCorrectionLevel: 'M',
-            }),
-          };
-          setCheckpointQrs((current) => ({
-            ...current,
-            [qrKey(checkpoint.id, team.id)]: generated,
-          }));
+          scanUrl = response.data.data.scanUrl;
         }
+        const imageUrl = await QRCode.toDataURL(scanUrl, {
+          width: 420,
+          margin: 2,
+          errorCorrectionLevel: 'M',
+        });
+        nextQrs[checkpoint.id] = {
+          ...checkpoint,
+          scanUrl,
+          imageUrl,
+        };
       }
-      setNotice('All team-specific checkpoint QR codes are ready to download.');
+      setCheckpointQrs(nextQrs);
+      setNotice('All location QR codes are ready to download.');
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not generate all QR codes.');
     } finally {
@@ -362,12 +515,6 @@ export function AdminPage() {
     setNotice('');
     try {
       await api.delete(`/admin/teams/${team.id}`);
-      setCheckpointQrs((current) =>
-        Object.fromEntries(
-          Object.entries(current).filter(([key]) => !key.endsWith(`:${team.id}`)),
-        ),
-      );
-      if (selectedQrTeamId === team.id) setSelectedQrTeamId('');
       if (editingTeam?.id === team.id) setEditingTeam(null);
       setNotice(`${team.name} was deleted.`);
       await load();
@@ -540,6 +687,14 @@ export function AdminPage() {
               <Button
                 type="button"
                 variant="secondary"
+                className="min-h-10 text-xs bg-slate-800/80 hover:bg-slate-700 text-cyan-300 border-cyan-500/30"
+                onClick={() => setTeamRoutesModalOpen(true)}
+              >
+                <Compass className="mr-1.5" size={16} /> Assign Routes
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
                 className="min-h-10 text-xs bg-slate-800/80 hover:bg-slate-700"
                 onClick={() => {
                   setSelectedCheckpointForClue(null);
@@ -692,53 +847,69 @@ export function AdminPage() {
             1
           </span>
           <div>
-            <h2 className="text-xl font-black">Number of checkpoints</h2>
+            <h2 className="text-xl font-black">Hunt Structure: Rounds & Locations</h2>
             <p className="text-sm text-slate-400">
-              Choose between 1 and 8. You can change this until the hunt ends.
+              Set total rounds and total physical venue locations / QRs independently. Both are separate configurations.
             </p>
           </div>
         </div>
-        <form className="mt-5 flex flex-wrap items-end gap-3" onSubmit={saveCheckpoints}>
+        <form className="mt-5 flex flex-wrap items-end gap-3" onSubmit={saveStructure}>
           <Field
-            label="Checkpoints"
+            label="Total Rounds"
             type="number"
             min={1}
-            max={8}
+            max={16}
             required
             disabled={!checkpointEditable}
-            value={checkpointCount}
-            onChange={(event) => setCheckpointCount(Number(event.target.value))}
+            value={roundCount}
+            onChange={(event) => setRoundCount(Number(event.target.value))}
             className="w-36"
           />
-          <Button disabled={!checkpointEditable || busy === 'checkpoints'}>
-            {busy === 'checkpoints'
+          <Field
+            label="Total Locations / QRs"
+            type="number"
+            min={1}
+            max={20}
+            required
+            disabled={!checkpointEditable}
+            value={locationCount}
+            onChange={(event) => setLocationCount(Number(event.target.value))}
+            className="w-44"
+          />
+          <Button disabled={!checkpointEditable || busy === 'structure'}>
+            {busy === 'structure'
               ? 'Saving…'
               : setup.event
-                ? 'Change checkpoints'
-                : 'Save checkpoints'}
+                ? 'Update Structure'
+                : 'Save Structure'}
           </Button>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded-lg bg-cyan-400/10 px-2.5 py-1 font-bold text-cyan-300 border border-cyan-400/30">
+              {roundCount} Rounds
+            </span>
+            <span className="rounded-lg bg-amber-400/10 px-2.5 py-1 font-bold text-amber-300 border border-amber-400/30">
+              {locationCount} Physical Locations / QRs
+            </span>
+          </div>
         </form>
 
         {setup.checkpoints.length ? (
           <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="font-bold">Checkpoint QR codes</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  Download and place the matching QR at each checkpoint.
+                <p className="font-bold text-base text-slate-100">Physical Location QRs & Clues</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  Print and place each QR code at its physical venue location. You can assign any location to any team for any round.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   type="button"
                   variant="secondary"
-                  className="text-xs"
-                  onClick={() => {
-                    setSelectedCheckpointForClue(null);
-                    setCluesModalOpen(true);
-                  }}
+                  className="text-xs text-amber-300 border-amber-500/30 hover:border-amber-400"
+                  onClick={() => setTeamRoutesModalOpen(true)}
                 >
-                  <Compass className="mr-1.5 text-amber-300" size={15} /> Team Clues
+                  <Compass className="mr-1.5" size={15} /> Assign Routes to Teams
                 </Button>
                 <Button
                   type="button"
@@ -762,7 +933,7 @@ export function AdminPage() {
                 <Button
                   type="button"
                   variant="secondary"
-                  disabled={!qrEditable || !setup.teams.length || busy === 'all-qrs'}
+                  disabled={!qrEditable || !setup.checkpoints.length || busy === 'all-qrs'}
                   onClick={() => void generateAllQrs()}
                 >
                   <QrCode className="mr-2" size={18} />
@@ -770,98 +941,290 @@ export function AdminPage() {
                 </Button>
               </div>
             </div>
-            {selectedQrTeam ? (
-              <div className="mt-5">
-                <div
-                  role="tablist"
-                  aria-label="Team checkpoint QR codes"
-                  className="flex gap-2 overflow-x-auto border-b border-slate-800 pb-3"
-                >
-                  {setup.teams.map((team) => {
-                    const selected = team.id === selectedQrTeam.id;
-                    return (
-                      <button
-                        key={team.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={selected}
-                        onClick={() => setSelectedQrTeamId(team.id)}
-                        className={`shrink-0 rounded-xl px-4 py-2 text-left transition ${
-                          selected
-                            ? 'bg-cyan-300 text-slate-950'
-                            : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
-                        }`}
-                      >
-                        <span className="block text-xs font-black uppercase tracking-wider">
-                          {team.code}
-                        </span>
-                        <span className="block max-w-40 truncate text-xs opacity-75">
-                          {team.name}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
 
-                <div
-                  role="tabpanel"
-                  aria-label={`${selectedQrTeam.name} checkpoint QR codes`}
-                  className="mt-4"
-                >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-bold text-slate-100">{selectedQrTeam.name}</p>
-                      <p className="text-xs text-slate-500">
-                        Generate and download only this team&apos;s checkpoint QRs below.
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-cyan-300">
-                      {setup.checkpoints.length} checkpoints
-                    </span>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {setup.checkpoints.map((checkpoint) => {
-                      const key = qrKey(checkpoint.id, selectedQrTeam.id);
-                      return (
-                        <CheckpointQrCard
-                          key={key}
-                          checkpoint={checkpoint}
-                          team={selectedQrTeam}
-                          generated={checkpointQrs[key]}
-                          busy={busy === `qr-${key}`}
-                          disabled={!qrEditable || busy === 'all-qrs'}
-                          onGenerate={() => void generateQr(checkpoint, selectedQrTeam)}
-                          onEditClue={() => {
-                            setSelectedCheckpointForClue(checkpoint.id);
-                            setCluesModalOpen(true);
-                          }}
-                          onEditDifficulty={() => {
-                            setSelectedCheckpointForDifficulty(checkpoint.id);
-                            setRoundDifficultiesOpen(true);
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="mt-4 text-sm text-slate-400">
-                Add a team to generate its checkpoint QR codes.
-              </p>
-            )}
-            <p className="mt-3 text-xs text-amber-200">
-              Replacing a QR immediately invalidates the previous one, including while the hunt is
-              running.
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {setup.checkpoints.map((checkpoint) => (
+                <CheckpointQrCard
+                  key={checkpoint.id}
+                  checkpoint={checkpoint}
+                  generated={checkpointQrs[checkpoint.id]}
+                  busy={busy === `qr-${checkpoint.id}`}
+                  disabled={!qrEditable || busy === 'all-qrs'}
+                  onGenerate={() => void generateQr(checkpoint)}
+                  onEditLocation={() => setEditingLocation(checkpoint as LocationData)}
+                  onEditDifficulty={() => {
+                    setSelectedCheckpointForDifficulty(checkpoint.id);
+                    setRoundDifficultiesOpen(true);
+                  }}
+                />
+              ))}
+            </div>
+
+            <p className="mt-4 text-xs text-slate-400">
+              Tip: Click <strong className="text-cyan-300">Edit</strong> on any location card to customize its name, unique clue, and optional player note.
             </p>
           </div>
         ) : null}
       </Panel>
 
+      {setup.event ? (
+        <Panel className="border-cyan-500/30 bg-slate-900/90">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="grid size-9 place-items-center rounded-full bg-cyan-300 font-black text-slate-950">
+                2
+              </span>
+              <div>
+                <h2 className="text-xl font-black">Assign Locations to Teams (Team Route Tabs)</h2>
+                <p className="text-sm text-slate-400">
+                  Select a team tab below to assign which location / QR they visit in each round. Locations can be repeated.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="text-xs"
+                onClick={() => setTeamRoutesModalOpen(true)}
+              >
+                <Compass className="mr-1.5" size={14} /> Full Route Modal
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void saveAllInlineRoutes()}
+                disabled={savingInlineRoutes || !setup.teams.length}
+                className="text-xs"
+              >
+                <Check className="mr-1.5" size={14} />
+                {savingInlineRoutes ? 'Saving…' : 'Save Team Routes'}
+              </Button>
+            </div>
+          </div>
+
+          {routeNotice ? (
+            <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-300">
+              <CheckCircle2 size={16} className="shrink-0" />
+              <span>{routeNotice}</span>
+            </div>
+          ) : null}
+
+          {setup.teams.length === 0 ? (
+            <p className="mt-5 rounded-xl bg-slate-950/60 p-4 text-sm text-slate-400">
+              No teams added yet. Add teams in the section below, then assign their route locations here.
+            </p>
+          ) : (
+            <div className="mt-5">
+              {/* Team Tabs Strip */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-800">
+                {setup.teams.map((team) => {
+                  const isSelected = selectedRouteTeamId === team.id;
+                  return (
+                    <button
+                      key={team.id}
+                      type="button"
+                      onClick={() => setSelectedRouteTeamId(team.id)}
+                      className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
+                        isSelected
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-sm shadow-cyan-950'
+                          : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'
+                      }`}
+                    >
+                      <span className="font-mono text-[11px] font-black text-cyan-400">{team.code}</span>
+                      <span className="truncate max-w-36">{team.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Selected Team Route Configuration */}
+              {(() => {
+                const activeTeam = setup.teams.find((t) => t.id === selectedRouteTeamId) ?? setup.teams[0];
+                if (!activeTeam) return null;
+                const effectiveRounds = Array.from({ length: roundCount }, (_, i) => i + 1);
+
+                return (
+                  <div className="mt-4">
+                    {/* Quick presets & action bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-black uppercase text-cyan-300">
+                            {activeTeam.code}
+                          </span>
+                          <h3 className="font-bold text-slate-100 text-sm">{activeTeam.name}</h3>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Assigned physical locations for {roundCount} rounds.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="text-xs px-2.5 py-1"
+                          onClick={() => applySequentialInline(activeTeam.id)}
+                          disabled={savingInlineRoutes}
+                          title="Assign Location 1 to Round 1, Location 2 to Round 2, etc."
+                        >
+                          <RotateCcw className="mr-1" size={12} /> Sequential
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="text-xs px-2.5 py-1 text-cyan-300 border-cyan-500/30 hover:border-cyan-400"
+                          onClick={() => applyStaggerInline(activeTeam.id)}
+                          disabled={savingInlineRoutes}
+                          title="Stagger this team to avoid crowd collisions"
+                        >
+                          <Shuffle className="mr-1" size={12} /> Stagger Start
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="text-xs px-2.5 py-1"
+                          onClick={() => applyRandomInline(activeTeam.id)}
+                          disabled={savingInlineRoutes}
+                          title="Randomize locations for this team"
+                        >
+                          <Dices className="mr-1" size={12} /> Randomize
+                        </Button>
+
+                        {setup.teams.length > 1 ? (
+                          <div className="flex items-center gap-1.5 pl-2 border-l border-slate-800">
+                            <span className="text-[11px] text-slate-400">Copy route:</span>
+                            <select
+                              className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 cursor-pointer"
+                              defaultValue=""
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  copyRouteInline(activeTeam.id, e.target.value);
+                                  e.target.value = '';
+                                }
+                              }}
+                            >
+                              <option value="" disabled>
+                                Select team…
+                              </option>
+                              {setup.teams
+                                .filter((t) => t.id !== activeTeam.id)
+                                .map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.code} - {t.name}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Visual Journey Path Breadcrumbs */}
+                    <div className="mt-3 flex items-center gap-2 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/40 p-2.5">
+                      <span className="text-xs font-bold text-slate-400 shrink-0">Route Flow:</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {effectiveRounds.map((seq, idx) => {
+                          const cpId = inlineRoutes[`${activeTeam.id}:${seq}`];
+                          const cp = setup.checkpoints.find((c) => c.id === cpId);
+                          return (
+                            <div key={seq} className="flex items-center gap-1.5 shrink-0">
+                              <div className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs">
+                                <span className="font-bold text-slate-400">R{seq}:</span>
+                                <span className="font-black text-cyan-300">{cp?.code ?? '—'}</span>
+                                <span className="text-slate-300 text-[11px] max-w-24 truncate">
+                                  {cp?.label ?? ''}
+                                </span>
+                              </div>
+                              {idx < effectiveRounds.length - 1 ? (
+                                <ArrowRight size={13} className="text-slate-600 shrink-0" />
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Rounds Location Cards Grid */}
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {effectiveRounds.map((seq) => {
+                        const key = `${activeTeam.id}:${seq}`;
+                        const currentCpId = inlineRoutes[key] ?? '';
+                        const selectedCp = setup.checkpoints.find((c) => c.id === currentCpId);
+
+                        // Find repetition
+                        const repeatedIn: number[] = [];
+                        for (const otherSeq of effectiveRounds) {
+                          if (otherSeq !== seq && inlineRoutes[`${activeTeam.id}:${otherSeq}`] === currentCpId) {
+                            repeatedIn.push(otherSeq);
+                          }
+                        }
+
+                        return (
+                          <div
+                            key={seq}
+                            className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-950/80 p-3.5 hover:border-slate-700 transition"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <span className="rounded-md bg-cyan-500/10 px-2 py-0.5 text-xs font-black text-cyan-300 border border-cyan-500/30">
+                                  Round {seq}
+                                </span>
+                                {repeatedIn.length > 0 ? (
+                                  <span className="rounded bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold text-amber-300 border border-amber-400/30">
+                                    Repeated in R{repeatedIn.join(', R')}
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                                Assigned Location:
+                              </label>
+                              <select
+                                value={currentCpId}
+                                onChange={(e) => updateInlineRoute(activeTeam.id, seq, e.target.value)}
+                                disabled={savingInlineRoutes}
+                                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-100 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 cursor-pointer"
+                              >
+                                {setup.checkpoints.map((cp) => (
+                                  <option key={cp.id} value={cp.id}>
+                                    {cp.code}: {cp.label}
+                                  </option>
+                                ))}
+                              </select>
+
+                              {selectedCp ? (
+                                <div className="mt-2.5 rounded-lg border border-slate-800/80 bg-slate-900/60 p-2 text-xs">
+                                  <p className="text-[11px] text-slate-300 line-clamp-2">
+                                    <span className="font-bold text-slate-400">Clue: </span>
+                                    {selectedCp.clue || 'No clue provided.'}
+                                  </p>
+                                  {selectedCp.note ? (
+                                    <p className="mt-1 text-[11px] text-amber-300/90 line-clamp-1">
+                                      <span className="font-bold">Note: </span>
+                                      {selectedCp.note}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </Panel>
+      ) : null}
+
       <Panel>
         <div className="flex items-center gap-3">
           <span className="grid size-9 place-items-center rounded-full bg-cyan-300 font-black text-slate-950">
-            2
+            3
           </span>
           <div>
             <h2 className="text-xl font-black">Add team and members</h2>
@@ -871,7 +1234,7 @@ export function AdminPage() {
 
         {!setup.event ? (
           <p className="mt-5 rounded-xl bg-amber-400/10 p-3 text-amber-200">
-            Save the number of checkpoints first.
+            Configure the hunt structure first.
           </p>
         ) : (
           <form className="mt-5 grid gap-5" onSubmit={addTeam}>
@@ -1283,7 +1646,7 @@ export function AdminPage() {
           isOpen={roundMappingOpen}
           onClose={() => setRoundMappingOpen(false)}
           eventId={setup.event.id}
-          checkpoints={setup.checkpoints}
+          checkpoints={roundsForConfig}
           onSaved={() => void load()}
         />
       )}
@@ -1311,8 +1674,27 @@ export function AdminPage() {
             setSelectedCheckpointForDifficulty(null);
           }}
           eventId={setup.event.id}
-          checkpoints={setup.checkpoints}
+          checkpoints={roundsForConfig}
           initialCheckpointId={selectedCheckpointForDifficulty}
+          onSaved={() => void load()}
+        />
+      )}
+
+      <EditLocationModal
+        isOpen={Boolean(editingLocation)}
+        location={editingLocation}
+        onClose={() => setEditingLocation(null)}
+        onSaved={() => void load()}
+      />
+
+      {setup.event && (
+        <TeamLocationRoutesModal
+          isOpen={teamRoutesModalOpen}
+          onClose={() => setTeamRoutesModalOpen(false)}
+          eventId={setup.event.id}
+          teams={setup.teams}
+          checkpoints={setup.checkpoints}
+          roundCount={roundCount}
           onSaved={() => void load()}
         />
       )}

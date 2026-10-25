@@ -1,14 +1,19 @@
-import { Compass, Download, Edit3, QrCode, RefreshCw } from 'lucide-react';
+import { Compass, Download, Edit3, Eye, EyeOff, FileText, QrCode, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/atoms/Button';
 
 export interface CheckpointSummary {
   id: string;
+  code?: string;
   label: string;
   sequence: number;
   round_id?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
   clue?: string;
+  note?: string;
+  show_note_to_player?: boolean;
+  qr_token?: string | null;
+  scanUrl?: string;
   team_clues?: Record<string, string>;
   game_id?: string | null;
   game_name?: string | null;
@@ -16,10 +21,10 @@ export interface CheckpointSummary {
 }
 
 export interface GeneratedCheckpointQr extends CheckpointSummary {
-  teamId?: string;
-  teamCode?: string;
   scanUrl: string;
   imageUrl: string;
+  teamId?: string;
+  teamCode?: string;
 }
 
 export function CheckpointQrCard({
@@ -28,37 +33,38 @@ export function CheckpointQrCard({
   busy,
   disabled,
   onGenerate,
+  onEditLocation,
   onEditClue,
   onEditDifficulty,
-  team,
 }: {
   checkpoint: CheckpointSummary;
   generated?: GeneratedCheckpointQr;
   busy: boolean;
   disabled: boolean;
   onGenerate(): void;
+  onEditLocation?(): void;
   onEditClue?(): void;
   onEditDifficulty?(): void;
-  team?: { id: string; code: string; name: string };
 }) {
+  const code = checkpoint.code || (checkpoint.sequence ? `LOC-${checkpoint.sequence}` : 'LOC');
+  const handleEdit = onEditLocation || onEditClue;
+
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 flex flex-col justify-between">
+    <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 flex flex-col justify-between hover:border-slate-700/80 transition shadow-lg">
       <div>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">
-              {team ? `${team.code} · ` : ''}Checkpoint {checkpoint.sequence}
-            </p>
-            <h3 className="font-black text-slate-100">{checkpoint.label}</h3>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-              <div>
-                <span>Game: </span>
-                <span className="font-bold text-amber-300">
-                  {checkpoint.game_name ? checkpoint.game_name : '🎲 Random (Unplayed)'}
-                </span>
-              </div>
-              <span className="text-slate-600">•</span>
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-black uppercase tracking-wider text-cyan-300">
+                {code}
+              </span>
+              <span className="rounded-full bg-slate-800/80 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                Location QR
+              </span>
+            </div>
+            <h3 className="mt-1 text-base font-black text-slate-100">{checkpoint.label}</h3>
+            {checkpoint.difficulty ? (
+              <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
                 <span>Difficulty: </span>
                 <span
                   className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
@@ -69,7 +75,7 @@ export function CheckpointQrCard({
                         : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                   }`}
                 >
-                  {checkpoint.difficulty ?? 'easy'}
+                  {checkpoint.difficulty}
                 </span>
                 {onEditDifficulty && (
                   <button
@@ -77,63 +83,85 @@ export function CheckpointQrCard({
                     onClick={onEditDifficulty}
                     className="text-slate-400 hover:text-cyan-300 transition p-0.5"
                     title={`Change difficulty for ${checkpoint.label}`}
-                    aria-label={`Change difficulty for ${checkpoint.label}`}
                   >
                     <Edit3 size={11} />
                   </button>
                 )}
               </div>
-            </div>
+            ) : null}
           </div>
-          <QrCode className="text-slate-500" />
+          {handleEdit && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-8 px-2.5 text-xs shrink-0"
+              onClick={handleEdit}
+              title="Edit Location, Clue & Notes"
+            >
+              <Edit3 size={13} className="mr-1 text-cyan-300" /> Edit
+            </Button>
+          )}
         </div>
 
-        {/* Clue section */}
+        {/* Unique Location Clue */}
         <div className="mt-3 rounded-xl border border-slate-800/80 bg-slate-900/60 p-3 text-xs">
           <div className="flex items-center justify-between text-slate-400 font-bold mb-1">
-            <span className="flex items-center gap-1.5 text-amber-300">
-              <Compass size={14} /> Round {checkpoint.sequence} Default Clue
+            <span className="flex items-center gap-1.5 text-amber-300 font-semibold">
+              <Compass size={14} /> Location Clue
             </span>
-            {onEditClue && (
-              <button
-                type="button"
-                onClick={onEditClue}
-                className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1 font-semibold text-[11px] transition"
-              >
-                <Edit3 size={12} /> Team Clues
-              </button>
-            )}
           </div>
           <p className="text-slate-300 italic line-clamp-2 mt-0.5">
-            {checkpoint.clue ? `"${checkpoint.clue}"` : `Proceed to Checkpoint ${checkpoint.sequence}.`}
+            {checkpoint.clue ? `"${checkpoint.clue}"` : 'No clue configured for this location.'}
+          </p>
+        </div>
+
+        {/* Note field with visibility badge */}
+        <div className="mt-2.5 rounded-xl border border-slate-800/60 bg-slate-900/40 p-2.5 text-xs">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
+              <FileText size={13} /> Admin Note
+            </span>
+            {checkpoint.note ? (
+              checkpoint.show_note_to_player ? (
+                <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
+                  <Eye size={10} /> Player Visible
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 border border-slate-700">
+                  <EyeOff size={10} /> Admin Only
+                </span>
+              )
+            ) : null}
+          </div>
+          <p className="text-slate-400 text-[11px] line-clamp-2">
+            {checkpoint.note ? checkpoint.note : <span className="italic text-slate-500">Empty (no notes added)</span>}
           </p>
         </div>
       </div>
 
       {generated ? (
-        <div className="mt-4">
-          <div className="rounded-xl bg-white p-3">
+        <div className="mt-4 pt-3 border-t border-slate-800/80">
+          <div className="rounded-xl bg-white p-3 shadow-inner">
             <img
               src={generated.imageUrl}
-              alt={
-                team
-                  ? `QR code for ${team.name} at ${checkpoint.label}`
-                  : `QR code for ${checkpoint.label}`
-              }
-              className="mx-auto aspect-square w-full max-w-64"
+              alt={`QR code for ${checkpoint.label}`}
+              className="mx-auto aspect-square w-full max-w-56"
             />
           </div>
+          <p className="mt-1.5 text-center font-mono text-[11px] text-slate-400 truncate">
+            {checkpoint.code || 'LOC'} · {checkpoint.label}
+          </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Button asChild>
               <a
                 href={generated.imageUrl}
                 download={
-                  team
-                    ? `${team.code}-checkpoint-${checkpoint.sequence}-qr.png`
+                  checkpoint.code
+                    ? `${checkpoint.code.toLowerCase()}-qr.png`
                     : `checkpoint-${checkpoint.sequence}-qr.png`
                 }
               >
-                <Download className="mr-2" size={17} /> Download
+                <Download className="mr-1.5" size={15} /> Download
               </a>
             </Button>
             <Button
@@ -142,7 +170,7 @@ export function CheckpointQrCard({
               disabled={disabled || busy}
               onClick={onGenerate}
             >
-              <RefreshCw className="mr-2" size={17} /> Replace
+              <RefreshCw className="mr-1.5" size={15} /> Refresh
             </Button>
           </div>
         </div>
@@ -153,7 +181,7 @@ export function CheckpointQrCard({
           disabled={disabled || busy}
           onClick={onGenerate}
         >
-          <QrCode className="mr-2" size={18} /> {busy ? 'Generating…' : 'Generate QR'}
+          <QrCode className="mr-2" size={17} /> {busy ? 'Generating…' : 'Generate QR'}
         </Button>
       )}
     </article>

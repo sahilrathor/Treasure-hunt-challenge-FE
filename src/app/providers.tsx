@@ -14,7 +14,8 @@ function InactivityWatcher() {
   const lastActivityRef = useRef(Date.now());
 
   useEffect(() => {
-    if (!identity) return;
+    // 1-minute inactivity timeout and single-active-session enforcement are strictly for players (participants), not admins
+    if (!identity || identity.role !== 'PARTICIPANT') return;
 
     lastActivityRef.current = Date.now();
 

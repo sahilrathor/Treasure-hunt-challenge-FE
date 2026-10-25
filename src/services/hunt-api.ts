@@ -63,9 +63,15 @@ export const huntApi = {
   },
   async clue() {
     return (
-      await api.get<ApiEnvelope<{ status: string; round?: number; clue: string | null }>>(
-        '/teams/me/clue',
-      )
+      await api.get<
+        ApiEnvelope<{
+          status: string;
+          round?: number;
+          clue: string | null;
+          note?: string | null;
+          locationLabel?: string | null;
+        }>
+      >('/teams/me/clue')
     ).data.data;
   },
   async history() {
@@ -232,6 +238,70 @@ export const huntApi = {
   async reloadAssignment(assignmentId: string) {
     return (
       await api.post<ApiEnvelope<Assignment>>(`/assignments/${assignmentId}/reload`)
+    ).data.data;
+  },
+  async updateLocation(
+    checkpointId: string,
+    payload: {
+      label?: string;
+      clue?: string;
+      note?: string;
+      showNoteToPlayer?: boolean;
+      rotateToken?: boolean;
+      active?: boolean;
+    },
+  ) {
+    return (
+      await api.patch<
+        ApiEnvelope<{
+          id: string;
+          code: string;
+          label: string;
+          clue: string;
+          note: string;
+          showNoteToPlayer: boolean;
+          qrToken?: string;
+          scanUrl?: string;
+        }>
+      >(`/admin/checkpoints/${checkpointId}`, payload)
+    ).data.data;
+  },
+  async updateTeamRoundLocations(
+    eventId: string,
+    mappings: Array<{ teamId: string; roundSequence: number; checkpointId: string }>,
+  ) {
+    return (
+      await api.post<ApiEnvelope<{ updated: boolean; count: number }>>(
+        `/admin/events/${eventId}/team-round-locations`,
+        { mappings },
+      )
+    ).data.data;
+  },
+  async updateHuntStructure(
+    eventId: string,
+    payload: { roundCount?: number; locationCount?: number },
+  ) {
+    return (
+      await api.patch<
+        ApiEnvelope<{
+          roundCount: number;
+          locationCount: number;
+          checkpointCount: number;
+          checkpoints: Array<{ id: string; label: string; code: string }>;
+        }>
+      >(`/admin/events/${eventId}/structure`, payload)
+    ).data.data;
+  },
+  async setupHuntStructure(payload: { roundCount?: number; locationCount?: number }) {
+    return (
+      await api.post<
+        ApiEnvelope<{
+          eventId: string;
+          roundCount: number;
+          locationCount: number;
+          checkpoints: Array<{ id: string; label: string; code: string }>;
+        }>
+      >('/admin/simple/setup', payload)
     ).data.data;
   },
 };

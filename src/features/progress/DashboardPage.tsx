@@ -45,7 +45,11 @@ export function DashboardPage() {
         <p className="animate-pulse">{error || 'Syncing team progress…'}</p>
       </Panel>
     );
-  const completed = Math.min(progress.current_sequence - 1, 8);
+  const totalRounds = progress.total_rounds ?? 8;
+  const completed =
+    progress.status === 'COMPLETED'
+      ? totalRounds
+      : Math.min(Math.max(0, progress.current_sequence - 1), totalRounds);
   return (
     <div className="grid gap-5">
       <div>
@@ -67,13 +71,16 @@ export function DashboardPage() {
             <p className="text-sm text-slate-400">Route progress</p>
             <p className="mt-1 text-3xl font-black">
               {completed}
-              <span className="text-slate-600"> / 8</span>
+              <span className="text-slate-600"> / {totalRounds}</span>
             </p>
           </div>
           <MapPin className="text-cyan-300" />
         </div>
-        <div className="mt-5 grid grid-cols-8 gap-2">
-          {Array.from({ length: 8 }, (_, index) => (
+        <div
+          className="mt-5 grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${totalRounds}, minmax(0, 1fr))` }}
+        >
+          {Array.from({ length: totalRounds }, (_, index) => (
             <div
               key={index}
               className={`h-2 rounded-full ${index < completed ? 'bg-cyan-300' : index === completed && progress.status === 'IN_PROGRESS' ? 'bg-amber-300' : 'bg-slate-800'}`}

@@ -62,6 +62,7 @@ export type GameCode =
 export interface Progress {
   status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'DISQUALIFIED';
   current_sequence: number;
+  total_rounds?: number | null;
   started_at: string | null;
   completed_at: string | null;
   assignment_id?: string | null;
@@ -72,6 +73,9 @@ export interface Progress {
   max_attempts?: number | null;
   cooldown_seconds?: number | null;
   last_failed_at?: string | null;
+  checkpoint_label?: string | null;
+  checkpoint_clue?: string | null;
+  checkpoint_note?: string | null;
 }
 
 export interface ApiEnvelope<T> {
