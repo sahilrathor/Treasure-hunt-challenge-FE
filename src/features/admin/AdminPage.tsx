@@ -251,18 +251,27 @@ export function AdminPage() {
   async function load(isBackground = false) {
     try {
       const response = await api.get<ApiEnvelope<SimpleSetup>>('/admin/simple');
-      setSetup(response.data.data);
-      if (response.data.data.event) {
-        setAllowMultipleLogins(Boolean(response.data.data.event.allow_multiple_logins));
+      const data = response.data.data;
+      if (data?.checkpoints) {
+        data.checkpoints.sort((a, b) =>
+          (a.code ?? a.label).localeCompare(b.code ?? b.label, undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          }),
+        );
+      }
+      setSetup(data);
+      if (data?.event) {
+        setAllowMultipleLogins(Boolean(data.event.allow_multiple_logins));
         if (!hasInitializedStructure.current || !isBackground) {
           hasInitializedStructure.current = true;
           const rc =
-            response.data.data.event.round_count ??
-            response.data.data.event.checkpoint_count ??
+            data.event.round_count ??
+            data.event.checkpoint_count ??
             5;
           const lc =
-            response.data.data.event.location_count ??
-            response.data.data.checkpoints.length ??
+            data.event.location_count ??
+            data.checkpoints.length ??
             5;
           setRoundCount(rc);
           setLocationCount(lc);
@@ -1189,7 +1198,7 @@ export function AdminPage() {
             label="Total Locations / QRs"
             type="number"
             min={1}
-            max={20}
+            max={100}
             required
             disabled={!checkpointEditable}
             value={locationCount}
