@@ -234,6 +234,27 @@ export const huntApi = {
       )
     ).data.data;
   },
+  async listTeamRoundGames(eventId: string, teamId: string) {
+    return (
+      await api.get<
+        ApiEnvelope<Array<{ round_id: string; sequence: number; game_id: string | null }>>
+      >(`/admin/events/${eventId}/team-round-games`, { params: { teamId } })
+    ).data.data;
+  },
+  async mapTeamRoundGames(
+    eventId: string,
+    payload: {
+      teamId: string;
+      mappings: Array<{ roundId: string; gameId?: string | null }>;
+    },
+  ) {
+    return (
+      await api.post<ApiEnvelope<{ updated: boolean; count: number }>>(
+        `/admin/events/${eventId}/team-round-games`,
+        payload,
+      )
+    ).data.data;
+  },
   async updateCheckpointClues(
     eventId: string,
     teamId: string,

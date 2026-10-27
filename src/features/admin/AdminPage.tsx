@@ -43,6 +43,7 @@ import { ChangeAdminPasswordModal } from './ChangeAdminPasswordModal';
 import { TeamRoundsModal } from './TeamRoundsModal';
 import { AdminGameSandboxModal } from './AdminGameSandboxModal';
 import { RoundGameMappingModal } from './RoundGameMappingModal';
+import { TeamRoundGameMappingModal } from './TeamRoundGameMappingModal';
 import { CheckpointCluesModal } from './CheckpointCluesModal';
 import { RoundDifficultiesModal } from './RoundDifficultiesModal';
 import { CooldownSettingsModal } from './CooldownSettingsModal';
@@ -157,6 +158,7 @@ export function AdminPage() {
   const [selectedTeamRounds, setSelectedTeamRounds] = useState<string | null>(null);
   const [sandboxOpen, setSandboxOpen] = useState(false);
   const [roundMappingOpen, setRoundMappingOpen] = useState(false);
+  const [teamRoundGameMappingOpen, setTeamRoundGameMappingOpen] = useState(false);
   const [cluesModalOpen, setCluesModalOpen] = useState(false);
   const [selectedCheckpointForClue, setSelectedCheckpointForClue] = useState<string | null>(null);
   const [roundDifficultiesOpen, setRoundDifficultiesOpen] = useState(false);
@@ -988,6 +990,14 @@ export function AdminPage() {
               >
                 <Shuffle className="mr-1.5 text-cyan-300" size={16} /> Round Games
               </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-10 text-xs bg-slate-800/80 hover:bg-slate-700"
+                onClick={() => setTeamRoundGameMappingOpen(true)}
+              >
+                <Gamepad2 className="mr-1.5 text-emerald-300" size={16} /> Team Games
+              </Button>
             </>
           ) : null}
           <Button asChild variant="secondary" className="min-h-10 text-xs">
@@ -1258,6 +1268,14 @@ export function AdminPage() {
                   onClick={() => setRoundMappingOpen(true)}
                 >
                   <Shuffle className="mr-1.5 text-cyan-300" size={15} /> Map Round Games
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="text-xs"
+                  onClick={() => setTeamRoundGameMappingOpen(true)}
+                >
+                  <Gamepad2 className="mr-1.5 text-emerald-300" size={15} /> Team Game Assignments
                 </Button>
                 <Button
                   type="button"
@@ -2040,6 +2058,17 @@ export function AdminPage() {
           onClose={() => setRoundMappingOpen(false)}
           eventId={setup.event.id}
           checkpoints={roundsForConfig}
+          onSaved={() => void load()}
+        />
+      )}
+
+      {setup.event && (
+        <TeamRoundGameMappingModal
+          isOpen={teamRoundGameMappingOpen}
+          onClose={() => setTeamRoundGameMappingOpen(false)}
+          eventId={setup.event.id}
+          teams={setup.teams}
+          rounds={roundsForConfig}
           onSaved={() => void load()}
         />
       )}
