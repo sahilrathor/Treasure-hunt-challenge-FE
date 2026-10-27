@@ -822,7 +822,7 @@ export function AdminPage() {
     if (!setup.event) return;
     if (
       !window.confirm(
-        'Restart this hunt with the same teams and checkpoints? All attempts, rankings, assignments, and team progress will be permanently cleared.',
+        'Reopen this hunt? Attempts, assignments, team progress, and results will be preserved. Teams will continue from their current progress when you start the hunt again. Use Reset Hunt if you want to clear data.',
       )
     )
       return;
@@ -831,10 +831,10 @@ export function AdminPage() {
     setNotice('');
     try {
       await api.post(`/admin/events/${setup.event.id}/control`, { action: 'RESTART' });
-      setNotice('The hunt was reset to draft. Review the setup, then start it again.');
+      setNotice('The hunt was reopened. Existing attempts, results, and team progress were preserved.');
       await load();
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : 'Could not restart the hunt.');
+      setError(cause instanceof ApiError ? cause.message : 'Could not reopen the hunt.');
     } finally {
       setBusy('');
     }
@@ -915,7 +915,7 @@ export function AdminPage() {
                 onClick={() => void restartHunt()}
               >
                 <RotateCcw className="mr-1.5" size={14} />
-                {busy === 'restart' ? 'Restarting…' : 'Restart Hunt'}
+                {busy === 'restart' ? 'Reopening…' : 'Reopen Hunt'}
               </Button>
               <Button
                 type="button"
