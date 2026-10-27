@@ -234,8 +234,7 @@ export function AdminPage() {
   }, [allParticipants, participantSearch]);
 
   const roundsForConfig = useMemo(() => {
-    if (setup.rounds && setup.rounds.length) {
-      return setup.rounds.map((r) => ({
+    return (setup.rounds ?? []).map((r) => ({
         id: r.id,
         sequence: r.sequence,
         difficulty: r.difficulty,
@@ -246,9 +245,7 @@ export function AdminPage() {
         game_name: r.game_name,
         game_code: r.game_code,
       }));
-    }
-    return setup.checkpoints.slice(0, roundCount);
-  }, [setup.rounds, setup.checkpoints, roundCount]);
+  }, [setup.rounds]);
 
   async function load(isBackground = false) {
     try {
