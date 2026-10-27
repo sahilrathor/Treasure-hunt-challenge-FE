@@ -130,8 +130,10 @@ export function AppLayout() {
           ) : null}
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6 pb-24">
-        <Outlet />
+      <main className="mx-auto w-full min-w-0 max-w-6xl overflow-x-clip px-4 py-6 pb-24">
+        <div className="min-w-0">
+          <Outlet />
+        </div>
       </main>
       {links.length ? (
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-slate-950/95 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur">
