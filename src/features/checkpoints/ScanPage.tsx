@@ -10,23 +10,17 @@ import { useAuthStore } from '@/stores/auth.store';
 export function ScanPage() {
   const [params] = useSearchParams();
   const token = params.get('token');
-  const verified = params.get('verified') === '1';
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const identity = useAuthStore((state) => state.identity);
-  const logout = useAuthStore((state) => state.logout);
 
   useEffect(() => {
     if (!token) return;
     let active = true;
-    if (!verified) {
-      void logout().catch(() => undefined).then(() => {
-        if (active) navigate(`/login?scanToken=${encodeURIComponent(token)}`, { replace: true });
-      });
-      return () => {
-        active = false;
-      };
-    }
+
+    // A scanned checkpoint still requires a participant session, but an already signed-in
+    // player must keep that session. Logging them out here forced an unnecessary second login
+    // and could leave the player facing an "Authentication is required" response.
     if (identity?.role !== 'PARTICIPANT') {
       navigate(`/login?scanToken=${encodeURIComponent(token)}`, { replace: true });
       return;
@@ -42,7 +36,7 @@ export function ScanPage() {
     return () => {
       active = false;
     };
-  }, [identity, logout, navigate, token, verified]);
+  }, [identity, navigate, token]);
 
   return (
     <Panel className="mx-auto max-w-lg text-center">

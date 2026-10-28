@@ -48,7 +48,7 @@ export function LoginPage() {
       });
       navigate(
         current.role === 'PARTICIPANT' && scanToken
-          ? `/scan?token=${encodeURIComponent(scanToken)}&verified=1`
+          ? `/scan?token=${encodeURIComponent(scanToken)}`
           : current.role === 'PARTICIPANT'
             ? '/'
             : '/admin',
@@ -91,7 +91,7 @@ export function LoginPage() {
       setWarningTarget(null);
       navigate(
         current.role === 'PARTICIPANT' && scanToken
-          ? `/scan?token=${encodeURIComponent(scanToken)}&verified=1`
+          ? `/scan?token=${encodeURIComponent(scanToken)}`
           : current.role === 'PARTICIPANT'
             ? '/'
             : '/admin',
