@@ -11,6 +11,8 @@ export function AppLayout() {
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const location = useLocation();
+  const isParticipant = identity?.role === 'PARTICIPANT';
+  const contentWidth = isParticipant ? 'max-w-md' : 'max-w-6xl';
 
   const logoClickRef = useRef<{ count: number; timer: ReturnType<typeof setTimeout> | null }>({
     count: 0,
@@ -82,7 +84,7 @@ export function AppLayout() {
   return (
     <div className="min-h-dvh bg-slate-950 text-slate-50">
       <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+        <div className={cn('mx-auto flex items-center justify-between gap-4 px-4 py-3', contentWidth)}>
           <div className="flex items-center gap-6">
             <Link
               to={identity?.role === 'PARTICIPANT' ? '/' : '/admin'}
@@ -130,7 +132,12 @@ export function AppLayout() {
           ) : null}
         </div>
       </header>
-      <main className="mx-auto w-full min-w-0 max-w-6xl overflow-x-clip px-4 py-6 pb-24">
+      <main
+        className={cn(
+          'mx-auto w-full min-w-0 overflow-x-clip px-4 py-6 pb-24',
+          contentWidth,
+        )}
+      >
         <div className="min-w-0">
           <Outlet />
         </div>
